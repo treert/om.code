@@ -28,7 +28,7 @@ def convert_encoding_to_utf_8(filename):
     # Backup the origin file.
 
     # convert file from the source encoding to target encoding
-    content = codecs.open(filename, 'r').read()
+    content = codecs.open(filename,"rb").read()
     source_encoding = chardet.detect(content)['encoding']
     total_cnt+=1
     if source_encoding == None:
