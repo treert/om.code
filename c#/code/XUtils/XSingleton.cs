@@ -11,7 +11,9 @@ using System.Threading.Tasks;
  * 2. 提供一个简单的单例约束
  * 
  * 注意！！！
- * 容易导致代码耦合严重
+ * 1. 容易导致代码耦合严重
+ * 2. 基本是不能用于多线程的程序的，需要加锁
+ * 3. 单线程，多组单例可以通过修改singleton的代码实现
  */
 namespace XUtils
 {
