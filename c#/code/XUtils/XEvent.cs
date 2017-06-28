@@ -15,16 +15,52 @@ using System.Threading.Tasks;
  */
 namespace XUtils
 {
+
+    
     public abstract class XEvent
     {
         
     }
+
+    public abstract class XPoolEvent<T> : XEvent where T:class,new()
+    {
+        protected XPoolEvent() { }
+        private static Stack<T> _pool = new Stack<T>(100);
+        public static T New()
+        {
+            if (_pool.Count > 0)
+            {
+                return _pool.Pop();
+            }
+            else
+            {
+                return new T();
+            }
+        }
+
+        public static void Delete(T obj)
+        {
+            _pool.Push(obj);
+        }
+
+        public void FireTo(IEventReceiveObject receive_obj)
+        {
+            receive_obj.OnGetEvent(this);
+            Delete(this as T);
+        }
+    }
+
+    public interface IEventReceiveObject
+    {
+        void OnGetEvent(XEvent e);
+    }
+
     public delegate void XEventHandler(XEvent e);
 
     /// <summary>
     /// 对象基类，可以接受事件
     /// </summary>
-    public class XEventContain
+    public class XEventContain : IEventReceiveObject
     {
         private Dictionary<Type, XEventHandler> _event_handles = new Dictionary<Type, XEventHandler>();
 

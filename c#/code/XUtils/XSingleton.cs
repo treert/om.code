@@ -4,6 +4,15 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+
+/*
+ * 单例模式，最简单的模式
+ * 1. 提供方便的全局访问入口
+ * 2. 提供一个简单的单例约束
+ * 
+ * 注意！！！
+ * 容易导致代码耦合严重
+ */
 namespace XUtils
 {
     public abstract class XBaseSingleton

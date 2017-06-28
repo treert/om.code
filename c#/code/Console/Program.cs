@@ -22,14 +22,14 @@ class Program
 
     }
 
-    class XEventTwo:XEvent
+    class XEventTwo:XPoolEvent<XEventTwo>
     {
 
     }
     #endregion
 
     #region XSingleton
-    class Test1: XSingleton<Test1>
+    class Test1: XSingleton<Test1> , IEventReceiveObject
     {
         private XEventContain _event_contain = new XEventContain();
 
@@ -64,7 +64,7 @@ class Program
     static void Test(object[] args)
     {
         Test1.singleton.OnGetEvent(new XEventOne());
-        Test1.singleton.OnGetEvent(new XEventTwo());
+        XEventTwo.New().FireTo(Test1.singleton);
     }
 }
 
