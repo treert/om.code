@@ -1,4 +1,3 @@
-#include "UnityPrefix.h"
 #include "InitializeAndCleanup.h"
 
 enum { kMaxCount = 40 };
@@ -6,6 +5,7 @@ enum { kMaxCount = 40 };
 struct OrderedCallback
 {
 	int														order;
+	std::string												name;
 	RegisterRuntimeInitializeAndCleanup::CallbackFunction*	init;
 	RegisterRuntimeInitializeAndCleanup::CallbackFunction*	cleanup;
 };
@@ -19,11 +19,12 @@ bool operator < (const OrderedCallback& lhs, const OrderedCallback& rhs)
 	return lhs.order < rhs.order;
 }
 
-RegisterRuntimeInitializeAndCleanup::RegisterRuntimeInitializeAndCleanup("name",CallbackFunction* Initialize, CallbackFunction* Cleanup, int order)
+RegisterRuntimeInitializeAndCleanup::RegisterRuntimeInitializeAndCleanup(CallbackFunction* Initialize, CallbackFunction* Cleanup, std::string name, int order)
 {
 	gCallbacks[gNumRegisteredCallbacks].init = Initialize;
 	gCallbacks[gNumRegisteredCallbacks].cleanup = Cleanup;
 	gCallbacks[gNumRegisteredCallbacks].order = order;
+	gCallbacks[gNumRegisteredCallbacks].name = name;
 
 	gNumRegisteredCallbacks++;
 	Assert(gNumRegisteredCallbacks <= kMaxCount);
@@ -48,35 +49,3 @@ void RegisterRuntimeInitializeAndCleanup::ExecuteCleanup()
 			gCallbacks[i].cleanup ();
 	}
 }
-
-
-void func_init()
-{
-	register(Mesgid,ufnc);
-}
-
-
-#define RegisterRuntimeInitialize(NAME,FUNC,FUNC2,ORDER)
-
-static RegisterRuntimeInitializeAndCleanup NAME(##NAME,FUNC,FUNC2,ORDER)
-	
-},[](){
-	
-},"type",1)
-
-
-MA 
-{
-	
-	M1,F1(){
-		
-		MA::GetInstance()
-	}
-	
-	MA(){
-		
-		
-	}
-}
-
-register(M1,F1);
