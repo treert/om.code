@@ -4,16 +4,15 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{0224C8EA-EE1D-4E05-AC8F-A1EBECE50FE8}</ProjectGuid>
-    <OutputType>Exe</OutputType>
+    <ProjectGuid>{91CBBB7E-0CBA-4FCB-8D10-D80CEB93288F}</ProjectGuid>
+    <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Console</RootNamespace>
-    <AssemblyName>Console</AssemblyName>
+    <RootNamespace>XSerialize</RootNamespace>
+    <AssemblyName>XSerialize</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
@@ -21,10 +20,8 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
@@ -42,21 +39,13 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="App.config" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\XSerialize\XSerialize.csproj">
-      <Project>{91cbbb7e-0cba-4fcb-8d10-d80ceb93288f}</Project>
-      <Name>XSerialize</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\XUtils\XUtils.csproj">
-      <Project>{c6fc8253-1498-4c2b-953d-5b04542baa62}</Project>
-      <Name>XUtils</Name>
-    </ProjectReference>
+    <Compile Include="Binary\XBinarySerializeArray.cs" />
+    <Compile Include="Binary\XBinarySerializeBaseType.cs" />
+    <Compile Include="Binary\XBinarySerializeClass.cs" />
+    <Compile Include="Binary\XBinarySerializeGeneric.cs" />
+    <Compile Include="Binary\XBinarySerializer.cs" />
+    <Compile Include="XSerializer.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

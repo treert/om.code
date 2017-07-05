@@ -8,7 +8,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test", "Console\Test.csproj", "{0224C8EA-EE1D-4E05-AC8F-A1EBECE50FE8}"
 	ProjectSection(ProjectDependencies) = postProject
 		{C6FC8253-1498-4C2B-953D-5B04542BAA62} = {C6FC8253-1498-4C2B-953D-5B04542BAA62}
+		{91CBBB7E-0CBA-4FCB-8D10-D80CEB93288F} = {91CBBB7E-0CBA-4FCB-8D10-D80CEB93288F}
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XSerialize", "XSerialize\XSerialize.csproj", "{91CBBB7E-0CBA-4FCB-8D10-D80CEB93288F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -24,6 +27,10 @@ Global
 		{0224C8EA-EE1D-4E05-AC8F-A1EBECE50FE8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0224C8EA-EE1D-4E05-AC8F-A1EBECE50FE8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0224C8EA-EE1D-4E05-AC8F-A1EBECE50FE8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{91CBBB7E-0CBA-4FCB-8D10-D80CEB93288F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{91CBBB7E-0CBA-4FCB-8D10-D80CEB93288F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{91CBBB7E-0CBA-4FCB-8D10-D80CEB93288F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{91CBBB7E-0CBA-4FCB-8D10-D80CEB93288F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
