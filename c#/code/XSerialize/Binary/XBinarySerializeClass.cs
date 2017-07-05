@@ -80,7 +80,7 @@ namespace XSerialize.Binary
         static IEnumerable<FieldInfo> GetFieldInfos(Type type)
         {
             var fields = type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-                .Where(fi => (fi.Attributes & FieldAttributes.NotSerialized) == 0)// [NotSerialized]
+                .Where(fi => (fi.Attributes & FieldAttributes.NotSerialized) == 0)// [NonSerialized]
                 .OrderBy(f => f.Name, StringComparer.Ordinal);
 
             if (type.BaseType == null)
