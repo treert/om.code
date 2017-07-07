@@ -39,13 +39,24 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Binary\XBinarySerializeOther.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Binary\XBinarySerializeArray.cs" />
-    <Compile Include="Binary\XBinarySerializeBaseType.cs" />
+    <Compile Include="Binary\XBinarySerializePrimitives.cs" />
     <Compile Include="Binary\XBinarySerializeClass.cs" />
     <Compile Include="Binary\XBinarySerializeGeneric.cs" />
     <Compile Include="Binary\XBinarySerializer.cs" />
+    <Compile Include="Xml\XXmlSerializeArray.cs" />
+    <Compile Include="Xml\XXmlSerializeClass.cs" />
+    <Compile Include="Xml\XXmlSerializeGeneric.cs" />
+    <Compile Include="Xml\XXmlSerializeOther.cs" />
+    <Compile Include="Xml\XXmlSerializePrimitives.cs" />
+    <Compile Include="Xml\XXmlSerializer.cs" />
+    <Compile Include="XSerializeException.cs" />
     <Compile Include="XSerializer.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="XmlDump\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

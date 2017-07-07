@@ -192,7 +192,8 @@ namespace XSerialize.Binary
                 var sha256 = System.Security.Cryptography.SHA256.Create();
                 var bytes = sha256.ComputeHash(stream);
 
-                _type_list_hash = (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | (bytes[3]);
+                _type_list_hash = BitConverter.ToInt32(bytes, 0);// 这个的字节序有些诡异，就当是小端序把，大端序不支持。
+                // _type_list_hash = (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | (bytes[3]);
             }
         }
 
@@ -296,6 +297,7 @@ namespace XSerialize.Binary
         /// <param name="obj"></param>
         public void InternalAddReadObjToCacheList(object obj)
         {
+            Debug.Assert(obj.GetType().IsValueType == false);
             _readed_objs.Add(obj);
         }
 

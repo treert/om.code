@@ -9,9 +9,7 @@ using System.Runtime.Serialization;
 
 
 /**
- * 基本类型
-    object
-    enum
+ * 基元类型(IsPrimitive)
     typeof(bool),
     typeof(char),
     typeof(byte), typeof(sbyte),
@@ -22,52 +20,7 @@ using System.Runtime.Serialization;
  */
 namespace XSerialize.Binary
 {
-    /******************* object ***********************************/
-    class XBinarySerializeObject : XBinarySerializerBase
-    {
-        public override bool Handles(Type type)
-        {
-            return typeof(object) == type;
-        }
 
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
-        {
-            var obj = new object();
-            serializer.InternalAddReadObjToCacheList(obj);
-            return obj;
-        }
-
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
-        {
-            Debug.Assert(typeof(object) == obj.GetType());
-            return;
-        }
-    }
-
-    /******************* enum ***************************************/
-    class XBinarySerializeEnum : XBinarySerializerBase
-    {
-        public override bool Handles(Type type)
-        {
-            return type.IsEnum;
-        }
-
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
-        {
-            object obj = serializer.InternalRead(reader, Enum.GetUnderlyingType(type));
-            return obj;// Enum里没有好的方法转换类型，发现可以直接=
-        }
-
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
-        {
-            serializer.InternalWrite(writer, obj, Enum.GetUnderlyingType(obj.GetType()));
-        }
-
-        public override IEnumerable<Type> AddSubtypes(XBinarySerializer serializer, Type type)
-        {
-            return new[] { Enum.GetUnderlyingType(type) };
-        }
-    }
 
     /*************** primitives *****************************/
     abstract class XBinarySerializePrimitive<T> : XBinarySerializerBase
