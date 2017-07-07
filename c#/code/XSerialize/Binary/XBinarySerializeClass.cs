@@ -7,16 +7,17 @@ using System.Reflection;
 using System.Diagnostics;
 using System.Runtime.Serialization;
 
+/**
+ * Class and Struct
+ */
 namespace XSerialize.Binary
 {
     /**
      * 通用类序列化，这个放到最后面
+     * 需要设置 XBinarySerializer.m_class_fields
      */
     class XBinarySerializeClass : XBinarySerializerBase
     {
-        // 这个类的实例，每个serializer会有一个。
-        Dictionary<Type, FieldInfo[]> _class_fields = new Dictionary<Type, FieldInfo[]>();
-
         public override bool Handles(Type type)
         {
             // todo@om 可以考虑加上
@@ -46,7 +47,7 @@ namespace XSerialize.Binary
             {
                 var fields = GetFieldInfos(type);
                 var fields_array = fields.ToArray();
-                _class_fields.Add(type, fields_array);// can optimize
+                serializer.m_class_fields.Add(type, fields_array);// can optimize
 
                 foreach (var field in fields_array)
                 {
@@ -57,8 +58,12 @@ namespace XSerialize.Binary
 
         public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
         {
-            var fields = _class_fields[type];
+            var fields = serializer.m_class_fields[type];
             object obj = FormatterServices.GetUninitializedObject(type);
+            if(type.IsValueType == false)
+            {
+                serializer.InternalAddReadObjToCacheList(obj);
+            }
             foreach (var field in fields)
             {
                 var val = serializer.InternalRead(reader, field.FieldType);
@@ -69,7 +74,7 @@ namespace XSerialize.Binary
 
         public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
         {
-            var fields = _class_fields[obj.GetType()];
+            var fields = serializer.m_class_fields[obj.GetType()];
             foreach (var field in fields)
             {
                 var val = field.GetValue(obj);

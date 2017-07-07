@@ -23,7 +23,7 @@ namespace XSerialize.Binary
 
         public override IEnumerable<Type> AddSubtypes(XBinarySerializer serializer, Type type)
         {
-            return new[] { type.GetElementType() };
+            yield return type.GetElementType();
         }
 
         public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
@@ -44,6 +44,7 @@ namespace XSerialize.Binary
                 is_empty = is_empty || (lengths[i] == 0);
             }
             var arr = Array.CreateInstance(element_type, lengths, lowerBounds);
+            serializer.InternalAddReadObjToCacheList(arr);
             if (is_empty)
                 return arr;// why c# allow `new int[0,0]`
 
@@ -126,7 +127,9 @@ namespace XSerialize.Binary
 
         public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
         {
-            return reader.ReadString();
+            var obj = reader.ReadString();
+            serializer.InternalAddReadObjToCacheList(obj);
+            return obj;
         }
 
         public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
@@ -147,7 +150,9 @@ namespace XSerialize.Binary
         public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
         {
             int count = reader.ReadInt32();
-            return reader.ReadBytes(count);
+            var obj = reader.ReadBytes(count);
+            serializer.InternalAddReadObjToCacheList(obj);
+            return obj;
         }
 
         public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)

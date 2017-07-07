@@ -6,6 +6,11 @@ using System.Text;
 using System.Reflection;
 using System.Diagnostics;
 
+
+/*
+ * 1. List<>
+ * 2. Dictionary<,>
+ */
 namespace XSerialize.Binary
 {
     // 序列化泛型的基类，方便写代码
@@ -54,6 +59,7 @@ namespace XSerialize.Binary
         {
             int count = reader.ReadInt32();
             List<T> obj = new List<T>(count);
+            serializer.InternalAddReadObjToCacheList(obj);
             for (int i = 0; i < count; ++i)
             {
                 obj.Add((T)serializer.InternalRead(reader, typeof(T)));
@@ -82,6 +88,7 @@ namespace XSerialize.Binary
         {
             int count = reader.ReadInt32();
             Dictionary<TKey, TValue> obj = new Dictionary<TKey, TValue>(count);
+            serializer.InternalAddReadObjToCacheList(obj);
             for (int i = 0; i < count; ++i)
             {
                 TKey key = (TKey)serializer.InternalRead(reader, typeof(TKey));

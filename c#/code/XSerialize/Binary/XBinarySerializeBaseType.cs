@@ -19,10 +19,6 @@ using System.Runtime.Serialization;
     typeof(uint), typeof(int),
     typeof(ulong), typeof(long),
     typeof(float), typeof(double),
-    typeof(string),
-    typeof(byte[]),
-    typeof(DateTime),
-    typeof(Decimal),
  */
 namespace XSerialize.Binary
 {
@@ -36,7 +32,9 @@ namespace XSerialize.Binary
 
         public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
         {
-            return new object();
+            var obj = new object();
+            serializer.InternalAddReadObjToCacheList(obj);
+            return obj;
         }
 
         public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
@@ -244,36 +242,6 @@ namespace XSerialize.Binary
         public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
         {
             writer.Write((double)obj);
-        }
-    }
-
-    /****************** DateTime ***************************/
-    class XBianrySerializeDecimal : XBinarySerializePrimitive<decimal> // 128位浮点数,不是基本类型
-    {
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
-        {
-            return reader.ReadDecimal();
-        }
-
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
-        {
-            writer.Write((decimal)obj);
-        }
-    }
-
-    /****************** DateTime ***************************/
-    class XBianrySerializeDateTime : XBinarySerializePrimitive<DateTime>
-    {
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
-        {
-            long v = reader.ReadInt64();
-            return DateTime.FromBinary(v);
-        }
-
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
-        {
-            long v = ((DateTime)obj).ToBinary();
-            writer.Write(v);
         }
     }
 }

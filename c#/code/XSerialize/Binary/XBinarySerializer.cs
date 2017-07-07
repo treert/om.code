@@ -50,6 +50,9 @@ namespace XSerialize.Binary
 
             new XBinarySerializeSingle(),
             new XBinarySerializeDouble(),
+
+            new XBinarySerializeDecimal(),
+            new XBinarySerializeDateTime(),
             
             new XBinarySerializeString(),
             new XBinarySerializeByteArray(),
@@ -59,7 +62,7 @@ namespace XSerialize.Binary
             new XBinarySerializeList(),
             new XBinarySerializeDictionary(),
 
-            new XBinarySerializeClass(),
+            new XBinarySerializeClass(),// special, can handle all class and struct, must be at last
 		};
 
         Type[] _base_types = new Type[] {
@@ -88,6 +91,8 @@ namespace XSerialize.Binary
         List<Type> _type_list = new List<Type>();
         Dictionary<Type, int> _type_id_map = new Dictionary<Type, int>();
         Dictionary<Type, XBinarySerializerBase> _type_handle_map = new Dictionary<Type, XBinarySerializerBase>();
+        // For class serialize
+        internal Dictionary<Type, FieldInfo[]> m_class_fields = new Dictionary<Type, FieldInfo[]>();
         int _type_list_hash = 0;
 
         public XBinarySerializer(params Type[] types)
@@ -100,6 +105,7 @@ namespace XSerialize.Binary
             _type_handle_map.Clear();
             _type_id_map.Clear();
             _type_list.Clear();
+            m_class_fields.Clear();
 
             _AddTypesWithoutHash(_base_types);
             _AddTypesWithoutHash(types);
@@ -166,11 +172,22 @@ namespace XSerialize.Binary
                 foreach(Type type in _type_list)
                 {
                     writer.Write(type.ToString());// use FullName ??
+                    // fields
+                    FieldInfo[] fields = null;
+                    if(m_class_fields.TryGetValue(type, out fields))
+                    {
+                        foreach(var field in fields)
+                        {
+                            writer.Write(field.Name);
+                            writer.Write(field.FieldType.ToString());// use FullName ??
+                        }
+                    }
                 }
                 foreach(var serializer in _custom_serializers)
                 {
                     writer.Write(serializer.GetType().ToString());
                 }
+
 
                 var sha256 = System.Security.Cryptography.SHA256.Create();
                 var bytes = sha256.ComputeHash(stream);
@@ -181,24 +198,30 @@ namespace XSerialize.Binary
 
         public override void Serialize(Stream stream, object obj)
         {
-            _writed_obj_ids.Clear();
-            BinaryWriter writer = new BinaryWriter(stream);
-            writer.Write(_type_list_hash);
-            _Write(writer, obj);
-            _writed_obj_ids.Clear();
+            UTF8Encoding utf_8 = new UTF8Encoding(false, true);
+            using (BinaryWriter writer = new BinaryWriter(stream, utf_8, true)) 
+            {
+                _writed_obj_ids.Clear();
+                writer.Write(_type_list_hash);
+                _Write(writer, obj);
+                _writed_obj_ids.Clear();
+            }
         }
 
         public override object Deserialize(Stream stream)
         {
-            _readed_objs.Clear();
-            BinaryReader reader = new BinaryReader(stream);
-            if(_type_list_hash != reader.ReadInt32())
+            UTF8Encoding utf_8 = new UTF8Encoding(false, true);
+            using(BinaryReader reader = new BinaryReader(stream, utf_8, true))
             {
-                throw new Exception("type list hash is error, check ResetTypes And AddTypes");
+                _readed_objs.Clear();
+                if (_type_list_hash != reader.ReadInt32())
+                {
+                    throw new Exception("type list hash is error, check ResetTypes And AddTypes");
+                }
+                var obj = _Read(reader);
+                _readed_objs.Clear();
+                return obj;
             }
-            var obj = _Read(reader);
-            _readed_objs.Clear();
-            return obj;
         }
 
         // For class reuse, object born num
@@ -247,9 +270,11 @@ namespace XSerialize.Binary
                 {
                     writer.Write((byte)type_id);
                 }
-             
+                if(type.IsValueType == false)
+                {
+                    _writed_obj_ids.Add(obj, _writed_obj_ids.Count);// Must do before write to avoid loop
+                }
                 _type_handle_map[type].Write(this, writer, obj);
-                _writed_obj_ids.Add(obj, _writed_obj_ids.Count);// 放在后面，和read对应
             }
         }
 
@@ -263,6 +288,15 @@ namespace XSerialize.Binary
             {
                 return _Read(reader);
             }
+        }
+
+        /// <summary>
+        /// add obj to read cache, which is not valuetype
+        /// </summary>
+        /// <param name="obj"></param>
+        public void InternalAddReadObjToCacheList(object obj)
+        {
+            _readed_objs.Add(obj);
         }
 
         object _Read(BinaryReader reader)
@@ -290,8 +324,15 @@ namespace XSerialize.Binary
                 }
                 // 取得实际类型
                 var type = _type_list[type_id];// 输入数据不对，会发生越界错误
+                int idx = _readed_objs.Count;// use to check: is class obj add to _readed_objs
                 var obj = _type_handle_map[type].Read(this, reader, type);// 输入数据不对，会发生读dic错误
-                _readed_objs.Add(obj);
+                if (type.IsValueType == false)
+                {
+                    if(_readed_objs.Count == idx || _readed_objs[idx] != obj)
+                    {
+                        throw new XSerializeException("Serializer {0} forget use InternalAddReadObjToCacheList", _type_handle_map[type]);
+                    }
+                }
                 return obj;
             }
         }
@@ -327,7 +368,6 @@ namespace XSerialize.Binary
         public virtual IEnumerable<Type> AddSubtypes(XBinarySerializer serializer, Type type)
         {
             yield break;
-            //return new Type[0];
         }
 
         public abstract object Read(XBinarySerializer serializer, BinaryReader reader, Type type);
