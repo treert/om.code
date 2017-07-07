@@ -155,6 +155,41 @@ namespace XSerialize.Xml
             //}
         }
 
+        bool _is_dump_mode = false;
+        public string Dump(object obj)
+        {
+            if(obj == null)
+            {
+                return @"<Root flag=""null""/>";
+            }
+            string xml;
+            try
+            {
+                _is_dump_mode = true;
+                StringBuilder str = new StringBuilder();
+                XmlWriterSettings settings = new XmlWriterSettings();
+                settings.Indent = true;// 缩进
+                //settings.Encoding = Encoding.UTF8;// encoding并不生效，为了避免混乱，把开头去掉把
+                settings.OmitXmlDeclaration = true;
+                settings.NewLineChars = "\n";
+                using (XmlWriter writer = XmlWriter.Create(str, settings))
+                {
+                    _writed_obj_ids.Clear();
+                    writer.WriteStartElement("Root");
+                    InternalWrite(writer, obj, obj.GetType());
+                    writer.WriteEndElement();
+                    _writed_obj_ids.Clear();
+                }
+                xml = str.ToString();
+            }
+            finally
+            {
+                _is_dump_mode = false;
+            }
+
+            return xml;
+        }
+
         public T DeserializeFromString<T>(string str)
         {
             return (T)DeserializeFromString(str, typeof(T));
@@ -205,10 +240,15 @@ namespace XSerialize.Xml
 
         // For check, Xml does not support use one class twice
         Dictionary<object, int> _writed_obj_ids = new Dictionary<object, int>();
-        List<object> _readed_objs = new List<object>();
+        // List<object> _readed_objs = new List<object>();
 
         internal void InternalWrite(XmlWriter writer, object obj, Type type)
         {
+            if(_is_dump_mode)
+            {
+                _DumpWrite(writer, obj);
+                return;
+            }
             if(obj == null)
             {
                 writer.WriteAttributeString("flag", "null");
@@ -236,6 +276,46 @@ namespace XSerialize.Xml
             }
         }
 
+        void _DumpWrite(XmlWriter writer, object obj)
+        {
+            if (obj == null)
+            {
+                writer.WriteAttributeString("flag", "null");
+                return;
+            }
+            else
+            {
+                var type = obj.GetType();
+                writer.WriteAttributeString("type", type.ToString());
+                if (type.IsValueType == false && type != typeof(string))
+                {
+                    if (_writed_obj_ids.ContainsKey(obj))
+                    {
+                        writer.WriteAttributeString("flag", "reuse");
+                        writer.WriteAttributeString("id", _writed_obj_ids[obj].ToString());
+                        return;
+                    }
+                }
+                XXmlSerializerBase handle;
+                try
+                {
+                    handle = GetTypeSerializerWithException(type);
+                }
+                catch (NotSupportedException e)
+                {
+                    writer.WriteAttributeString("flag", "not serializable");
+                    return;
+                }
+                if (type.IsValueType == false && type != typeof(string))
+                {
+                    writer.WriteAttributeString("flag", "new");
+                    writer.WriteAttributeString("id", _writed_obj_ids.Count.ToString());
+                    _writed_obj_ids.Add(obj, _writed_obj_ids.Count);
+                }
+                handle.Write(this, writer, obj);
+            }
+        }
+
         internal object InternalRead(XmlReader reader, Type type)
         {
             if(type.IsValueType == false)
@@ -257,7 +337,7 @@ namespace XSerialize.Xml
             var serializer = _inner_serializers.FirstOrDefault(h => h.Handles(type));
 
             if (serializer == null)
-                throw new NotSupportedException(String.Format("No serializer for {0}", type.FullName));
+                throw new NotSupportedException(String.Format("No serializer for {0}", type));
 
             _type_handle_map.Add(type, serializer);
             return serializer;

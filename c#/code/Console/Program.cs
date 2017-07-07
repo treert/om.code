@@ -104,38 +104,45 @@ class Program
             //Console.WriteLine("{0}, {1}", arr.GetLowerBound(0), arr.GetUpperBound(1));
         }
 
+        //{
+        //    XXmlSerializer serializer = new XXmlSerializer();
+
+        //    Action<object> test_func = (object obj) =>
+        //    {
+        //        Type type;
+        //        if (obj == null)
+        //            type = typeof(object);
+        //        else
+        //            type = obj.GetType();
+        //        string xx = serializer.SerializeToString(obj);
+        //        Console.WriteLine(xx);
+        //        object yy = serializer.DeserializeFromString(xx, type);
+        //        Console.WriteLine(yy);
+        //    };
+
+        //    DateTime time = DateTime.Now;
+        //    DateTime utc = DateTime.UtcNow;
+        //    object x = (byte)2;
+        //    byte y = (byte)x;
+        //    test_func(null);
+        //    test_func(1);
+        //    test_func(EnumXX.A);
+        //    test_func((sbyte)-2);
+        //    test_func((long)1123456789123456789);
+        //    test_func(123456789123456789123456789m);
+        //    test_func(new TestXmlSerializer());
+        //    test_func(new TestXmlSerializer2());
+        //}
         {
-            MemoryStream stream = new MemoryStream();
             XXmlSerializer serializer = new XXmlSerializer();
-
-            Action<object> test_func = (object obj) =>
+            Action<object> test_dump = (object obj) =>
             {
-                Type type;
-                if (obj == null)
-                    type = typeof(object);
-                else
-                    type = obj.GetType();
-                string xx = serializer.SerializeToString(obj);
+                string xx = serializer.Dump(obj);
                 Console.WriteLine(xx);
-                object yy = serializer.DeserializeFromString(xx, type);
-                Console.WriteLine(yy);
             };
-
-            DateTime time = DateTime.Now;
-            DateTime utc = DateTime.UtcNow;
-            object x = (byte)2;
-            byte y = (byte)x;
-            test_func(null);
-            test_func(1);
-            test_func(EnumXX.A);
-            test_func((sbyte)-2);
-            test_func((long)1123456789123456789);
-            test_func(123456789123456789123456789m);
-            test_func(new TestXmlSerializer());
-            test_func(new TestXmlSerializer2());
-
+            test_dump(typeof(Type));
+            test_dump(Encoding.UTF8.GetPreamble());
         }
-
     }
 
     static void Test(object[] args)
