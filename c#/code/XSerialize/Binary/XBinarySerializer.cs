@@ -26,7 +26,7 @@ using System.Diagnostics;
  */
 namespace XSerialize.Binary
 {
-    public class XBinarySerializer : XSerializer
+    public class XBinarySerializer
     {
         // use at fisrt, don't recommend use, hash will take it info
         XBinarySerializerBase[] _custom_serializers = new XBinarySerializeByte[]{
@@ -100,7 +100,7 @@ namespace XSerialize.Binary
             ResetTypes(types);
         }
 
-        public override void ResetTypes(params Type[] types)
+        public void ResetTypes(params Type[] types)
         {
             _type_handle_map.Clear();
             _type_id_map.Clear();
@@ -113,17 +113,50 @@ namespace XSerialize.Binary
             OrderTypeAndCalculateHash();
         }
 
-        public override void AddTypes(params Type[] types)
+        public void AddTypes(params Type[] types)
         {
             _AddTypesWithoutHash(types);
 
             OrderTypeAndCalculateHash();
         }
 
+        public void Serialize(Stream stream, object obj)
+        {
+            UTF8Encoding utf_8 = new UTF8Encoding(false, true);
+            using (BinaryWriter writer = new BinaryWriter(stream, utf_8, true)) 
+            {
+                _writed_obj_ids.Clear();
+                writer.Write(_type_list_hash);
+                _Write(writer, obj);
+                _writed_obj_ids.Clear();
+            }
+        }
+
+        public T Deserialize<T>(Stream stream)
+        {
+            return (T)Deserialize(stream);
+        }
+
+        public object Deserialize(Stream stream)
+        {
+            UTF8Encoding utf_8 = new UTF8Encoding(false, true);
+            using(BinaryReader reader = new BinaryReader(stream, utf_8, true))
+            {
+                _readed_objs.Clear();
+                if (_type_list_hash != reader.ReadInt32())
+                {
+                    throw new Exception("type list hash is error, check ResetTypes And AddTypes");
+                }
+                var obj = _Read(reader);
+                _readed_objs.Clear();
+                return obj;
+            }
+        }
+
         void _AddTypesWithoutHash(Type[] types)
         {
             var stack = new Stack<Type>(types);
-            while(stack.Count > 0)
+            while (stack.Count > 0)
             {
                 var type = stack.Pop();
 
@@ -141,7 +174,7 @@ namespace XSerialize.Binary
                 _type_handle_map[type] = serializer;
                 _type_list.Add(type);
 
-                foreach(var t in serializer.AddSubtypes(this, type))
+                foreach (var t in serializer.AddSubtypes(this, type))
                 {
                     if (_type_handle_map.ContainsKey(t) == false)
                         stack.Push(t);
@@ -169,21 +202,21 @@ namespace XSerialize.Binary
             using (var stream = new MemoryStream())
             using (var writer = new BinaryWriter(stream))
             {
-                foreach(Type type in _type_list)
+                foreach (Type type in _type_list)
                 {
                     writer.Write(type.ToString());// use FullName ??
                     // fields
                     FieldInfo[] fields = null;
-                    if(m_class_fields.TryGetValue(type, out fields))
+                    if (m_class_fields.TryGetValue(type, out fields))
                     {
-                        foreach(var field in fields)
+                        foreach (var field in fields)
                         {
                             writer.Write(field.Name);
                             writer.Write(field.FieldType.ToString());// use FullName ??
                         }
                     }
                 }
-                foreach(var serializer in _custom_serializers)
+                foreach (var serializer in _custom_serializers)
                 {
                     writer.Write(serializer.GetType().ToString());
                 }
@@ -194,34 +227,6 @@ namespace XSerialize.Binary
 
                 _type_list_hash = BitConverter.ToInt32(bytes, 0);// 这个的字节序有些诡异，就当是小端序把，大端序不支持。
                 // _type_list_hash = (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | (bytes[3]);
-            }
-        }
-
-        public override void Serialize(Stream stream, object obj)
-        {
-            UTF8Encoding utf_8 = new UTF8Encoding(false, true);
-            using (BinaryWriter writer = new BinaryWriter(stream, utf_8, true)) 
-            {
-                _writed_obj_ids.Clear();
-                writer.Write(_type_list_hash);
-                _Write(writer, obj);
-                _writed_obj_ids.Clear();
-            }
-        }
-
-        public override object Deserialize(Stream stream)
-        {
-            UTF8Encoding utf_8 = new UTF8Encoding(false, true);
-            using(BinaryReader reader = new BinaryReader(stream, utf_8, true))
-            {
-                _readed_objs.Clear();
-                if (_type_list_hash != reader.ReadInt32())
-                {
-                    throw new Exception("type list hash is error, check ResetTypes And AddTypes");
-                }
-                var obj = _Read(reader);
-                _readed_objs.Clear();
-                return obj;
             }
         }
 

@@ -46,6 +46,8 @@
     <Compile Include="Binary\XBinarySerializeClass.cs" />
     <Compile Include="Binary\XBinarySerializeGeneric.cs" />
     <Compile Include="Binary\XBinarySerializer.cs" />
+    <Compile Include="Xml\XXmlDump.cs" />
+    <Compile Include="Xml\XXmlDumpClass.cs" />
     <Compile Include="Xml\XXmlSerializeArray.cs" />
     <Compile Include="Xml\XXmlSerializeClass.cs" />
     <Compile Include="Xml\XXmlSerializeGeneric.cs" />
@@ -53,7 +55,6 @@
     <Compile Include="Xml\XXmlSerializePrimitives.cs" />
     <Compile Include="Xml\XXmlSerializer.cs" />
     <Compile Include="XSerializeException.cs" />
-    <Compile Include="XSerializer.cs" />
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

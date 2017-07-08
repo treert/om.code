@@ -24,7 +24,7 @@ namespace XSerialize.Xml
 
 
     /*************** primitives *****************************/
-    abstract class XXmlSerializePrimitive<T> : XXmlSerializerBase
+    abstract class XXmlSerializePrimitive<T> : XXmlSerializeBase
     {
         public override bool Handles(Type type)
         {

@@ -14,7 +14,7 @@ using System.Xml;
 namespace XSerialize.Xml
 {
     // 序列化泛型的基类，方便写代码
-    abstract class XXmlSerializeGenericTypeBase : XXmlSerializerBase
+    abstract class XXmlSerializeGenericTypeBase : XXmlSerializeBase
     {
         public override bool Handles(Type type)
         {

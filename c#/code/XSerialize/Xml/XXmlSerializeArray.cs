@@ -15,7 +15,7 @@ using System.Xml;
 namespace XSerialize.Xml
 {
     /*************************** XXX[] *********************************************/
-    class XXmlSerializeArray : XXmlSerializerBase
+    class XXmlSerializeArray : XXmlSerializeBase
     {
         public override bool Handles(Type type)
         {
@@ -64,7 +64,7 @@ namespace XSerialize.Xml
     }
 
     /*************************** string *********************************************/
-    class XXmlSerializeString : XXmlSerializerBase
+    class XXmlSerializeString : XXmlSerializeBase
     {
         public override bool Handles(Type type)
         {
@@ -84,7 +84,7 @@ namespace XSerialize.Xml
     }
 
     /*************************** bype[] *********************************************/
-    class XXmlSerializeByteArray : XXmlSerializerBase
+    class XXmlSerializeByteArray : XXmlSerializeBase
     {
 
         public override bool Handles(Type type)

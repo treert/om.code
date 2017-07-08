@@ -13,7 +13,7 @@ namespace XSerialize.Xml
     /*
      * should use as last serialize handle
      */
-    class XXmlSerializeClass : XXmlSerializerBase
+    class XXmlSerializeClass : XXmlSerializeBase
     {
 
         public override bool Handles(Type type)

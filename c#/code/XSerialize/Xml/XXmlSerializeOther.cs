@@ -18,7 +18,7 @@ using System.Xml;
 namespace XSerialize.Xml
 {
     /******************* object ***********************************/
-    class XXmlSerializeObject : XXmlSerializerBase
+    class XXmlSerializeObject : XXmlSerializeBase
     {
         public override bool Handles(Type type)
         {
@@ -39,7 +39,7 @@ namespace XSerialize.Xml
     }
 
     /******************* enum ***************************************/
-    class XXmlSerializeEnum : XXmlSerializerBase
+    class XXmlSerializeEnum : XXmlSerializeBase
     {
         public override bool Handles(Type type)
         {
@@ -61,7 +61,7 @@ namespace XSerialize.Xml
     }
 
     /****************** decimal ***************************/
-    class XXmlSerializeDecimal : XXmlSerializerBase // 128位浮点数,不是基本类型
+    class XXmlSerializeDecimal : XXmlSerializeBase // 128位浮点数,不是基本类型
     {
         public override bool Handles(Type type)
         {
@@ -80,7 +80,7 @@ namespace XSerialize.Xml
     }
 
     /****************** DateTime ***************************/
-    class XXmlSerializeDateTime : XXmlSerializerBase
+    class XXmlSerializeDateTime : XXmlSerializeBase
     {
         public override bool Handles(Type type)
         {
@@ -99,7 +99,7 @@ namespace XSerialize.Xml
     }
 
     /****************** DateTimeOffset ***************************/
-    class XXmlSerializeDateTimeOffset : XXmlSerializerBase
+    class XXmlSerializeDateTimeOffset : XXmlSerializeBase
     {
         public override bool Handles(Type type)
         {
