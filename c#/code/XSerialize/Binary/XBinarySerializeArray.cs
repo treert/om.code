@@ -21,12 +21,12 @@ namespace XSerialize.Binary
             return type.IsArray;
         }
 
-        public override IEnumerable<Type> AddSubtypes(XBinarySerializer serializer, Type type)
+        public override IEnumerable<Type> AddSubtypes(IBinarySerializerForHandle serializer, Type type)
         {
             yield return type.GetElementType();
         }
 
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
+        public override object Read(IBinarySerializerForHandle serializer, BinaryReader reader, Type type)
         {
             int rank = type.GetArrayRank();
             var element_type = type.GetElementType();
@@ -70,7 +70,7 @@ namespace XSerialize.Binary
             return arr;
         }
 
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
+        public override void Write(IBinarySerializerForHandle serializer, BinaryWriter writer, object obj)
         {
             Array arr = (Array)obj;
             var type = obj.GetType();
@@ -125,14 +125,14 @@ namespace XSerialize.Binary
             return typeof(string) == type;
         }
 
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
+        public override object Read(IBinarySerializerForHandle serializer, BinaryReader reader, Type type)
         {
             var obj = reader.ReadString();
             serializer.InternalAddReadObjToCacheList(obj);
             return obj;
         }
 
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
+        public override void Write(IBinarySerializerForHandle serializer, BinaryWriter writer, object obj)
         {
             writer.Write((string)obj);
         }
@@ -147,7 +147,7 @@ namespace XSerialize.Binary
             return typeof(byte[]) == type;
         }
 
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
+        public override object Read(IBinarySerializerForHandle serializer, BinaryReader reader, Type type)
         {
             int count = reader.ReadInt32();
             var obj = reader.ReadBytes(count);
@@ -155,7 +155,7 @@ namespace XSerialize.Binary
             return obj;
         }
 
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
+        public override void Write(IBinarySerializerForHandle serializer, BinaryWriter writer, object obj)
         {
             byte[] data = (byte[])obj;
             writer.Write(data.Length);

@@ -34,12 +34,12 @@ namespace XSerialize.Xml
     class XXmlSerializeBoolean : XXmlSerializePrimitive<bool>
     {
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             return reader.ReadContentAsBoolean();
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             writer.WriteValue((bool)obj);
         }
@@ -48,7 +48,7 @@ namespace XSerialize.Xml
     class XXmlSerializeChar : XXmlSerializePrimitive<char>
     {
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             string s =  reader.ReadString();
             if (string.IsNullOrEmpty(s))
@@ -57,7 +57,7 @@ namespace XSerialize.Xml
                 return s[0];
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             writer.WriteValue((char)obj);
         }
@@ -66,12 +66,12 @@ namespace XSerialize.Xml
     class XXmlSerializeByte : XXmlSerializePrimitive<byte>
     {
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             return (byte)reader.ReadContentAsInt();
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             writer.WriteValue(obj);
         }
@@ -80,12 +80,12 @@ namespace XSerialize.Xml
     class XXmlSerializeSByte : XXmlSerializePrimitive<sbyte>
     {
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             return (sbyte)reader.ReadContentAsInt();
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             writer.WriteValue(obj);
         }
@@ -94,12 +94,12 @@ namespace XSerialize.Xml
     class XXmlSerializeInt16 : XXmlSerializePrimitive<short>
     {
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             return (short)reader.ReadContentAsInt();
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             writer.WriteValue(obj);
         }
@@ -108,12 +108,12 @@ namespace XSerialize.Xml
     class XXmlSerializeUInt16 : XXmlSerializePrimitive<ushort>
     {
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             return (ushort)reader.ReadContentAsInt();
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             writer.WriteValue(obj);
         }
@@ -122,12 +122,12 @@ namespace XSerialize.Xml
     class XXmlSerializeInt32 : XXmlSerializePrimitive<int>
     {
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             return (int)reader.ReadContentAsInt();
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             writer.WriteValue((int)obj);
         }
@@ -136,12 +136,12 @@ namespace XSerialize.Xml
     class XXmlSerializeUInt32 : XXmlSerializePrimitive<uint>
     {
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             return (uint)reader.ReadContentAsLong();
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             writer.WriteValue(obj);
         }
@@ -150,12 +150,12 @@ namespace XSerialize.Xml
     class XXmlSerializeInt64 : XXmlSerializePrimitive<long>
     {
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             return (long)reader.ReadContentAsLong();
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             writer.WriteValue(obj);
         }
@@ -164,12 +164,12 @@ namespace XSerialize.Xml
     class XXmlSerializeUInt64 : XXmlSerializePrimitive<ulong>
     {
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             return (ulong)reader.ReadContentAsDecimal();
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             writer.WriteValue((decimal)obj);
         }
@@ -178,12 +178,12 @@ namespace XSerialize.Xml
     class XXmlSerializeSingle : XXmlSerializePrimitive<float>
     {
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             return reader.ReadContentAsFloat();
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             writer.WriteValue((float)obj);
         }
@@ -192,12 +192,12 @@ namespace XSerialize.Xml
     class XXmlSerializeDouble : XXmlSerializePrimitive<double>
     {
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             return reader.ReadContentAsDouble();
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             writer.WriteValue((double)obj);
         }

@@ -30,7 +30,7 @@ namespace XSerialize.Xml
             return false;
         }
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             var obj = Activator.CreateInstance(type, true);
             bool is_null;
@@ -76,7 +76,7 @@ namespace XSerialize.Xml
             }
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             foreach(var field in GetFieldInfos(obj.GetType()))
             {

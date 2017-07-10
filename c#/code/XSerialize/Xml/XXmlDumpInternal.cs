@@ -30,7 +30,7 @@ using System.Xml;
 
 namespace XSerialize.Xml
 {
-    public class XXmlDump : XXmlSerializer
+    class XXmlDumpInternal : XXmlSerializerInternal
     {
         XXmlSerializeBase[] _inner_serializers = new XXmlSerializeBase[] {
             new XXmlSerializeObject(),

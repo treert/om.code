@@ -30,18 +30,18 @@ namespace XSerialize.Xml
             return false;
         }
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             Debug.Assert(false);
             return null;
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             _Write(serializer, writer, obj, obj.GetType());
         }
 
-        void _Write(XXmlSerializer serializer, XmlWriter writer, object obj, Type type)
+        void _Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj, Type type)
         {
             var fields = type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
                 .OrderBy(f => f.Name, StringComparer.Ordinal);

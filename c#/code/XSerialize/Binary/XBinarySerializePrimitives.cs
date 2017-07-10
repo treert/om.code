@@ -33,12 +33,12 @@ namespace XSerialize.Binary
     class XBinarySerializeBoolean : XBinarySerializePrimitive<bool>
     {
 
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
+        public override object Read(IBinarySerializerForHandle serializer, BinaryReader reader, Type type)
         {
             return reader.ReadBoolean();
         }
 
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
+        public override void Write(IBinarySerializerForHandle serializer, BinaryWriter writer, object obj)
         {
             writer.Write((bool)obj);
         }
@@ -47,12 +47,12 @@ namespace XSerialize.Binary
     class XBinarySerializeChar : XBinarySerializePrimitive<char>
     {
 
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
+        public override object Read(IBinarySerializerForHandle serializer, BinaryReader reader, Type type)
         {
             return reader.ReadChar();
         }
 
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
+        public override void Write(IBinarySerializerForHandle serializer, BinaryWriter writer, object obj)
         {
             writer.Write((char)obj);
         }
@@ -61,12 +61,12 @@ namespace XSerialize.Binary
     class XBinarySerializeByte : XBinarySerializePrimitive<byte>
     {
 
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
+        public override object Read(IBinarySerializerForHandle serializer, BinaryReader reader, Type type)
         {
             return reader.ReadByte();
         }
 
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
+        public override void Write(IBinarySerializerForHandle serializer, BinaryWriter writer, object obj)
         {
             writer.Write((byte)obj);
         }
@@ -75,12 +75,12 @@ namespace XSerialize.Binary
     class XBinarySerializeSByte : XBinarySerializePrimitive<sbyte>
     {
 
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
+        public override object Read(IBinarySerializerForHandle serializer, BinaryReader reader, Type type)
         {
             return reader.ReadSByte();
         }
 
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
+        public override void Write(IBinarySerializerForHandle serializer, BinaryWriter writer, object obj)
         {
             writer.Write((sbyte)obj);
         }
@@ -89,12 +89,12 @@ namespace XSerialize.Binary
     class XBinarySerializeInt16 : XBinarySerializePrimitive<short>
     {
 
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
+        public override object Read(IBinarySerializerForHandle serializer, BinaryReader reader, Type type)
         {
             return reader.ReadInt16();
         }
 
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
+        public override void Write(IBinarySerializerForHandle serializer, BinaryWriter writer, object obj)
         {
             writer.Write((short)obj);
         }
@@ -103,12 +103,12 @@ namespace XSerialize.Binary
     class XBinarySerializeUInt16 : XBinarySerializePrimitive<ushort>
     {
 
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
+        public override object Read(IBinarySerializerForHandle serializer, BinaryReader reader, Type type)
         {
             return reader.ReadUInt16();
         }
 
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
+        public override void Write(IBinarySerializerForHandle serializer, BinaryWriter writer, object obj)
         {
             writer.Write((ushort)obj);
         }
@@ -117,12 +117,12 @@ namespace XSerialize.Binary
     class XBinarySerializeInt32 : XBinarySerializePrimitive<int>
     {
 
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
+        public override object Read(IBinarySerializerForHandle serializer, BinaryReader reader, Type type)
         {
             return reader.ReadInt32();
         }
 
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
+        public override void Write(IBinarySerializerForHandle serializer, BinaryWriter writer, object obj)
         {
             writer.Write((int)obj);
         }
@@ -131,12 +131,12 @@ namespace XSerialize.Binary
     class XBinarySerializeUInt32 : XBinarySerializePrimitive<uint>
     {
 
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
+        public override object Read(IBinarySerializerForHandle serializer, BinaryReader reader, Type type)
         {
             return reader.ReadUInt32();
         }
 
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
+        public override void Write(IBinarySerializerForHandle serializer, BinaryWriter writer, object obj)
         {
             writer.Write((uint)obj);
         }
@@ -145,12 +145,12 @@ namespace XSerialize.Binary
     class XBinarySerializeInt64 : XBinarySerializePrimitive<long>
     {
 
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
+        public override object Read(IBinarySerializerForHandle serializer, BinaryReader reader, Type type)
         {
             return reader.ReadInt64();
         }
 
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
+        public override void Write(IBinarySerializerForHandle serializer, BinaryWriter writer, object obj)
         {
             writer.Write((long)obj);
         }
@@ -159,12 +159,12 @@ namespace XSerialize.Binary
     class XBinarySerializeUInt64 : XBinarySerializePrimitive<ulong>
     {
 
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
+        public override object Read(IBinarySerializerForHandle serializer, BinaryReader reader, Type type)
         {
             return reader.ReadUInt64();
         }
 
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
+        public override void Write(IBinarySerializerForHandle serializer, BinaryWriter writer, object obj)
         {
             writer.Write((ulong)obj);
         }
@@ -173,12 +173,12 @@ namespace XSerialize.Binary
     class XBinarySerializeSingle : XBinarySerializePrimitive<float>
     {
 
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
+        public override object Read(IBinarySerializerForHandle serializer, BinaryReader reader, Type type)
         {
             return reader.ReadSingle();
         }
 
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
+        public override void Write(IBinarySerializerForHandle serializer, BinaryWriter writer, object obj)
         {
             writer.Write((float)obj);
         }
@@ -187,12 +187,12 @@ namespace XSerialize.Binary
     class XBinarySerializeDouble : XBinarySerializePrimitive<double>
     {
 
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
+        public override object Read(IBinarySerializerForHandle serializer, BinaryReader reader, Type type)
         {
             return reader.ReadDouble();
         }
 
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
+        public override void Write(IBinarySerializerForHandle serializer, BinaryWriter writer, object obj)
         {
             writer.Write((double)obj);
         }

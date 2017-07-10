@@ -26,7 +26,7 @@ namespace XSerialize.Xml
 
         public abstract Type GetWorkGenericType();
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             var method_write = this.GetType()
                 .GetMethod("ReadGeneric", BindingFlags.Static | BindingFlags.NonPublic)
@@ -34,7 +34,7 @@ namespace XSerialize.Xml
             return method_write.Invoke(null, new object[] { serializer, reader });
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             var method_write = this.GetType()
                 .GetMethod("WriteGeneric", BindingFlags.Static | BindingFlags.NonPublic)
@@ -50,7 +50,7 @@ namespace XSerialize.Xml
             return typeof(List<>);
         }
 
-        static object ReadGeneric<T>(XXmlSerializer serializer, XmlReader reader)
+        static object ReadGeneric<T>(XXmlSerializerInternal serializer, XmlReader reader)
         {
             List<T> obj = new List<T>();
             bool is_null;
@@ -67,7 +67,7 @@ namespace XSerialize.Xml
             return obj;
         }
 
-        static void WriteGeneric<T>(XXmlSerializer serializer, XmlWriter writer, List<T> obj)
+        static void WriteGeneric<T>(XXmlSerializerInternal serializer, XmlWriter writer, List<T> obj)
         {
             for (int i = 0; i < obj.Count; ++i)
             {
@@ -85,7 +85,7 @@ namespace XSerialize.Xml
             return typeof(Dictionary<,>);
         }
 
-        static object ReadGeneric<TKey, TValue>(XXmlSerializer serializer, XmlReader reader)
+        static object ReadGeneric<TKey, TValue>(XXmlSerializerInternal serializer, XmlReader reader)
         {
             Dictionary<TKey, TValue> obj = new Dictionary<TKey, TValue>();
             bool is_null;
@@ -111,7 +111,7 @@ namespace XSerialize.Xml
             return obj;
         }
 
-        static void WriteGeneric<TKey, TValue>(XXmlSerializer serializer, XmlWriter writer, Dictionary<TKey, TValue> obj)
+        static void WriteGeneric<TKey, TValue>(XXmlSerializerInternal serializer, XmlWriter writer, Dictionary<TKey, TValue> obj)
         {
             foreach (var item in obj)
             {

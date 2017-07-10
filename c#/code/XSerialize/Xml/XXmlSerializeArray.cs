@@ -22,7 +22,7 @@ namespace XSerialize.Xml
             return type.IsArray && type.GetArrayRank() == 1;
         }
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             var method_write = this.GetType()
                 .GetMethod("ReadGeneric", BindingFlags.Static | BindingFlags.NonPublic)
@@ -30,7 +30,7 @@ namespace XSerialize.Xml
             return method_write.Invoke(null, new object[] { serializer, reader });
         }
 
-        static object ReadGeneric<T>(XXmlSerializer serializer, XmlReader reader)
+        static object ReadGeneric<T>(XXmlSerializerInternal serializer, XmlReader reader)
         {
             List<T> obj = new List<T>();
             bool is_null;
@@ -47,7 +47,7 @@ namespace XSerialize.Xml
             return obj.ToArray();
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             Array arr = (Array)obj;
             if (arr.GetLowerBound(0) != 0)
@@ -71,13 +71,13 @@ namespace XSerialize.Xml
             return typeof(string) == type;
         }
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             var obj = reader.ReadString();
             return obj;
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             writer.WriteValue((string)obj);
         }
@@ -92,13 +92,13 @@ namespace XSerialize.Xml
             return typeof(byte[]) == type;
         }
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             string s = reader.ReadContentAsString();
             return Convert.FromBase64String(s);
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             byte[] data = (byte[])obj;
             writer.WriteString(Convert.ToBase64String(data));

@@ -43,7 +43,7 @@ using System.Xml;
 
 namespace XSerialize.Xml
 {
-    public class XXmlSerializer
+    class XXmlSerializerInternal
     {
         XXmlSerializeBase[] _inner_serializers = new XXmlSerializeBase[] {
             new XXmlSerializeObject(),
@@ -80,28 +80,6 @@ namespace XSerialize.Xml
 		};
 
         internal Dictionary<Type, XXmlSerializeBase> _type_handle_map = new Dictionary<Type, XXmlSerializeBase>();
-
-        public XXmlSerializer()
-        {
-        }
-
-        public string SerializeToString(object obj)
-        {
-            if (obj == null)
-            {
-                //throw new XSerializeException("param obj can not be null");
-                return SerializeToString(null, typeof(object));
-            }
-            else
-            {
-                return SerializeToString(obj, obj.GetType());
-            }
-        }
-
-        public string SerializeToString<T>(object obj)
-        {
-            return SerializeToString(obj, typeof(T));
-        }
 
         public string SerializeToString(object obj, Type type)
         {
@@ -153,11 +131,6 @@ namespace XSerialize.Xml
             //    var xml = Encoding.UTF8.GetString(stream.ToArray(),3,(int)stream.Length - 3);
             //    return xml;
             //}
-        }
-
-        public T DeserializeFromString<T>(string str)
-        {
-            return (T)DeserializeFromString(str, typeof(T));
         }
 
         public object DeserializeFromString(string str, Type type)
@@ -273,7 +246,7 @@ namespace XSerialize.Xml
         /// </summary>
         public abstract bool Handles(Type type);
 
-        public abstract object Read(XXmlSerializer serializer, XmlReader reader, Type type);
-        public abstract void Write(XXmlSerializer serializer, XmlWriter writer, object obj);
+        public abstract object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type);
+        public abstract void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj);
     }
 }

@@ -26,12 +26,12 @@ namespace XSerialize.Binary
 
         public abstract Type GetWorkGenericType();
 
-        public override IEnumerable<Type> AddSubtypes(XBinarySerializer serializer, Type type)
+        public override IEnumerable<Type> AddSubtypes(IBinarySerializerForHandle serializer, Type type)
         {
             return type.GetGenericArguments();
         }
 
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
+        public override object Read(IBinarySerializerForHandle serializer, BinaryReader reader, Type type)
         {
             var method_write = this.GetType()
                 .GetMethod("ReadGeneric", BindingFlags.Static | BindingFlags.NonPublic)
@@ -39,7 +39,7 @@ namespace XSerialize.Binary
             return method_write.Invoke(null, new object[] { serializer, reader });
         }
 
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
+        public override void Write(IBinarySerializerForHandle serializer, BinaryWriter writer, object obj)
         {
             var method_write = this.GetType()
                 .GetMethod("WriteGeneric", BindingFlags.Static | BindingFlags.NonPublic)
@@ -55,7 +55,7 @@ namespace XSerialize.Binary
             return typeof(List<>);
         }
 
-        static object ReadGeneric<T>(XBinarySerializer serializer, BinaryReader reader)
+        static object ReadGeneric<T>(IBinarySerializerForHandle serializer, BinaryReader reader)
         {
             int count = reader.ReadInt32();
             List<T> obj = new List<T>(count);
@@ -67,7 +67,7 @@ namespace XSerialize.Binary
             return obj;
         }
 
-        static void WriteGeneric<T>(XBinarySerializer serializer, BinaryWriter writer, List<T> obj)
+        static void WriteGeneric<T>(IBinarySerializerForHandle serializer, BinaryWriter writer, List<T> obj)
         {
             writer.Write(obj.Count);
             for (int i = 0; i < obj.Count; ++i)
@@ -84,7 +84,7 @@ namespace XSerialize.Binary
             return typeof(Dictionary<,>);
         }
 
-        static object ReadGeneric<TKey, TValue>(XBinarySerializer serializer, BinaryReader reader)
+        static object ReadGeneric<TKey, TValue>(IBinarySerializerForHandle serializer, BinaryReader reader)
         {
             int count = reader.ReadInt32();
             Dictionary<TKey, TValue> obj = new Dictionary<TKey, TValue>(count);
@@ -98,7 +98,7 @@ namespace XSerialize.Binary
             return obj;
         }
 
-        static void WriteGeneric<TKey, TValue>(XBinarySerializer serializer, BinaryWriter writer, Dictionary<TKey, TValue> obj)
+        static void WriteGeneric<TKey, TValue>(IBinarySerializerForHandle serializer, BinaryWriter writer, Dictionary<TKey, TValue> obj)
         {
             writer.Write(obj.Count);
             foreach (var item in obj)

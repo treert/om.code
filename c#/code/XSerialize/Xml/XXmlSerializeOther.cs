@@ -25,13 +25,13 @@ namespace XSerialize.Xml
             return typeof(object) == type;
         }
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             var obj = new object();
             return obj;
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             Debug.Assert(typeof(object) == obj.GetType());
             return;
@@ -46,14 +46,14 @@ namespace XSerialize.Xml
             return type.IsEnum;
         }
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             string s = reader.ReadContentAsString();
             var obj = Enum.Parse(type, s);
             return obj;
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             //writer.WriteAttributeString("type", obj.GetType().ToString());
             writer.WriteValue(obj.ToString());
@@ -68,12 +68,12 @@ namespace XSerialize.Xml
             return typeof(decimal) == type;
         }
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             return reader.ReadContentAsDecimal();
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             writer.WriteValue((decimal)obj);
         }
@@ -87,12 +87,12 @@ namespace XSerialize.Xml
             return typeof(DateTime) == type;
         }
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             return reader.ReadContentAsDateTime();
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             writer.WriteValue((DateTime)obj);
         }
@@ -106,12 +106,12 @@ namespace XSerialize.Xml
             return typeof(DateTimeOffset) == type;
         }
 
-        public override object Read(XXmlSerializer serializer, XmlReader reader, Type type)
+        public override object Read(XXmlSerializerInternal serializer, XmlReader reader, Type type)
         {
             return reader.ReadContentAsDateTimeOffset();
         }
 
-        public override void Write(XXmlSerializer serializer, XmlWriter writer, object obj)
+        public override void Write(XXmlSerializerInternal serializer, XmlWriter writer, object obj)
         {
             writer.WriteValue((DateTimeOffset)obj);
         }

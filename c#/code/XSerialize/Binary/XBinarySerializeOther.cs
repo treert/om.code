@@ -23,14 +23,14 @@ namespace XSerialize.Binary
             return typeof(object) == type;
         }
 
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
+        public override object Read(IBinarySerializerForHandle serializer, BinaryReader reader, Type type)
         {
             var obj = new object();
             serializer.InternalAddReadObjToCacheList(obj);
             return obj;
         }
 
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
+        public override void Write(IBinarySerializerForHandle serializer, BinaryWriter writer, object obj)
         {
             Debug.Assert(typeof(object) == obj.GetType());
             return;
@@ -45,18 +45,18 @@ namespace XSerialize.Binary
             return type.IsEnum;
         }
 
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
+        public override object Read(IBinarySerializerForHandle serializer, BinaryReader reader, Type type)
         {
             object obj = serializer.InternalRead(reader, Enum.GetUnderlyingType(type));
             return obj;// Enum里没有好的方法转换类型，发现可以直接=
         }
 
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
+        public override void Write(IBinarySerializerForHandle serializer, BinaryWriter writer, object obj)
         {
             serializer.InternalWrite(writer, obj, Enum.GetUnderlyingType(obj.GetType()));
         }
 
-        public override IEnumerable<Type> AddSubtypes(XBinarySerializer serializer, Type type)
+        public override IEnumerable<Type> AddSubtypes(IBinarySerializerForHandle serializer, Type type)
         {
             return new[] { Enum.GetUnderlyingType(type) };
         }
@@ -65,12 +65,12 @@ namespace XSerialize.Binary
     /****************** decimal ***************************/
     class XBinarySerializeDecimal : XBinarySerializePrimitive<decimal> // 128位浮点数,不是基本类型
     {
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
+        public override object Read(IBinarySerializerForHandle serializer, BinaryReader reader, Type type)
         {
             return reader.ReadDecimal();
         }
 
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
+        public override void Write(IBinarySerializerForHandle serializer, BinaryWriter writer, object obj)
         {
             writer.Write((decimal)obj);
         }
@@ -79,13 +79,13 @@ namespace XSerialize.Binary
     /****************** DateTime ***************************/
     class XBinarySerializeDateTime : XBinarySerializePrimitive<DateTime>
     {
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
+        public override object Read(IBinarySerializerForHandle serializer, BinaryReader reader, Type type)
         {
             long v = reader.ReadInt64();
             return DateTime.FromBinary(v);
         }
 
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
+        public override void Write(IBinarySerializerForHandle serializer, BinaryWriter writer, object obj)
         {
             long v = ((DateTime)obj).ToBinary();
             writer.Write(v);

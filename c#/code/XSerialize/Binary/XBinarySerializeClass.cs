@@ -37,7 +37,7 @@ namespace XSerialize.Binary
             return false;
         }
 
-        public override IEnumerable<Type> AddSubtypes(XBinarySerializer serializer, Type type)
+        public override IEnumerable<Type> AddSubtypes(IBinarySerializerForHandle serializer, Type type)
         {
             if (type.IsAbstract || type.IsInterface)
             {
@@ -47,7 +47,7 @@ namespace XSerialize.Binary
             {
                 var fields = GetFieldInfos(type);
                 var fields_array = fields.ToArray();
-                serializer.m_class_fields.Add(type, fields_array);// can optimize
+                serializer.AddClassFieldInfos(type, fields_array);
 
                 foreach (var field in fields_array)
                 {
@@ -56,9 +56,9 @@ namespace XSerialize.Binary
             }
         }
 
-        public override object Read(XBinarySerializer serializer, BinaryReader reader, Type type)
+        public override object Read(IBinarySerializerForHandle serializer, BinaryReader reader, Type type)
         {
-            var fields = serializer.m_class_fields[type];
+            var fields = serializer.GetClassFieldInfos(type);
             object obj = FormatterServices.GetUninitializedObject(type);
             if(type.IsValueType == false)
             {
@@ -72,9 +72,9 @@ namespace XSerialize.Binary
             return obj;
         }
 
-        public override void Write(XBinarySerializer serializer, BinaryWriter writer, object obj)
+        public override void Write(IBinarySerializerForHandle serializer, BinaryWriter writer, object obj)
         {
-            var fields = serializer.m_class_fields[obj.GetType()];
+            var fields = serializer.GetClassFieldInfos(obj.GetType());
             foreach (var field in fields)
             {
                 var val = field.GetValue(obj);
