@@ -9,12 +9,12 @@ using System.Runtime.Serialization;
 using System.Xml;
 
 /*
- * contains: T[] List<> Dictinary<,>
- * class: has a default constructor which has no params
  * 
  * 限制很大：
- * 1. 不支持多态赋值
- * 2. 不支持引用循环
+ * 1. 不支持多态，传入对象类型和定义类型需要相同。【不能使用接口，虚类】
+ * 2. 不能有类对象引用出现两次。【当然也不支持引用循环】
+ * 3. 类需要有默认构造函数。
+ * 4. 容器当前只支持：`List<>`,`Dictionary<,>`
  * 
  * 坑：
  * 1. XmlReader忒不好用
