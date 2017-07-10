@@ -129,7 +129,7 @@ namespace XSerialize
     public class XSerializeSingleton<T> where T:new()
     {
         static T _instance = default(T);
-        public T singleton
+        public static T singleton
         {
             get
             {
