@@ -22,6 +22,9 @@ namespace FileEncode
         public delegate void UpdateProcesss(int percent);
         public UpdateProcesss m_updateProcess;
 
+        public delegate void ShowMessage(string msg);
+        public ShowMessage m_showMessage;
+
         private bool _is_find_all_files = false;
         private bool _is_converting_files = false;
         private Thread _work_thread = null;
@@ -43,7 +46,7 @@ namespace FileEncode
             {
                 _work_thread = new Thread(new ParameterizedThreadStart(_ConvertTo));
                 _work_thread.IsBackground = true;
-                _work_thread.Start(Encoding.UTF8);
+                _work_thread.Start(new UTF8Encoding(true,true));
             }
         }
 
@@ -81,21 +84,31 @@ namespace FileEncode
         {
             var encoding = (Encoding)encoding_;
             _is_converting_files = true;
-            m_updateProcess(0);
-            for(int i = 0; i < _file_info_list.Count; ++i)
+            try
             {
-                var item = _file_info_list[i];
-                if(item.is_ok)
+                m_updateProcess(0);
+                for (int i = 0; i < _file_info_list.Count; ++i)
                 {
-                    Utils.ConvertFile(item.file_name, item.encoding, encoding);
-                    item.encoding = encoding;
+                    var item = _file_info_list[i];
+                    if (item.is_ok)
+                    {
+                        Utils.ConvertFile(item.file_name, item.encoding, encoding);
+                        item.encoding = encoding;
+                    }
+                    m_updateProcess(Utils.GetPercent(i, _file_info_list.Count));
                 }
-                m_updateProcess(Utils.GetPercent(i,_file_info_list.Count));
+                m_updateProcess(-1);
+                m_updateFileList();
+                m_showMessage("转码完成");
             }
-            m_updateProcess(-1);
-            m_updateFileList();
-            _is_converting_files = true;
-            _work_thread = null;
+            catch(Exception e){
+                m_showMessage("转码失败：" + e.Message);
+            }
+            finally
+            {
+                _is_converting_files = false;
+                _work_thread = null;
+            }
         }
 
         private List<ItemData> _file_info_list = new List<ItemData>();
@@ -200,18 +213,18 @@ namespace FileEncode
     class Utils{
 
         static Dictionary<Encoding, int[]> s_bom_map = new Dictionary<Encoding, int[]>(){
-                {Encoding.UTF8, new int[]{0xEF,0xBB,0xBF}},// utf-8-bom
-                {Encoding.BigEndianUnicode, new int[]{0xEF,0xFF}},// utf-16-big
-                {Encoding.Unicode, new int[]{0xFF, 0xFE}},// utf-16-small
+                {new UTF8Encoding(true,true), new int[]{0xEF,0xBB,0xBF}},// utf-8-bom
+                {new UnicodeEncoding(true,true,true), new int[]{0xEF,0xFF}},// utf-16-big
+                {new UnicodeEncoding(false,true,true), new int[]{0xFF, 0xFE}},// utf-16-small
                 {new UTF32Encoding(true, true, true), new int[]{0,0,0xFE, 0xFF}}, // utf-32-big
                 {new UTF32Encoding(false, true, true), new int[]{0xFF, 0xFE,0,0}}, // utf-32-small
             };
 
         static Dictionary<Encoding, string> s_encoding_name_map = new Dictionary<Encoding, string>(){
-                {new UTF8Encoding(false,true), "utf-8"},// utf-8-bom
-                {Encoding.UTF8, "utf-8-bom"},// utf-8-bom
-                {Encoding.BigEndianUnicode, "utf-16-big"},// utf-16-big
-                {Encoding.Unicode, "utf-16-small"},// utf-16-small
+                {new UTF8Encoding(false,true), "utf-8"},// utf-8
+                {new UTF8Encoding(true,true), "utf-8-bom"},// utf-8-bom
+                {new UnicodeEncoding(true,true,true), "utf-16-big"},// utf-16-big
+                {new UnicodeEncoding(false,true,true), "utf-16-small"},// utf-16-small
                 {new UTF32Encoding(true, true, true), "utf-32-big"}, // utf-32-big
                 {new UTF32Encoding(false, true, true), "utf-32-small"}, 
             };

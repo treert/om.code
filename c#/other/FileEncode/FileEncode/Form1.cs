@@ -18,10 +18,19 @@ namespace FileEncode
             listView1.AllowDrop = true;
             WorkModel.singleton.m_updateFileList += UpdateFileListView;
             WorkModel.singleton.m_updateProcess += UpdateProcess;
+            WorkModel.singleton.m_showMessage += ShowMessage;
             progressBar1.Visible = false;
 
             listView1.FullRowSelect = true;// 可以选择行
             listView1.MultiSelect = true;
+        }
+
+        private void ShowMessage(string msg)
+        {
+            this.Invoke(new Action(() =>
+            {
+                MessageBox.Show(msg);
+            }));
         }
 
         private void UpdateFileListView()
