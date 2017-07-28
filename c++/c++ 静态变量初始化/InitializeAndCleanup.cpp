@@ -1,4 +1,4 @@
-#include "InitializeAndCleanup.h"
+﻿#include "InitializeAndCleanup.h"
 
 enum { kMaxCount = 40 };
 

@@ -8,6 +8,10 @@ import re
 import chardet
 
 convertfiletypes = [
+  ".c",".cpp",".h",".hpp",
+  ".cs",
+  ".go"
+  ".ss",
   ".xml",
   ".lua",
   ".csd",
@@ -36,7 +40,8 @@ def convert_encoding_to_utf_8(filename):
         unkown_cnt+=1
         return
     print "  ",source_encoding, filename
-    if source_encoding != 'utf-8' and source_encoding != 'UTF-8-SIG':
+    #if source_encoding != 'utf-8' and source_encoding != 'UTF-8-SIG':
+    if source_encoding != 'UTF-8-SIG':
         content = content.decode(source_encoding, 'ignore') #.encode(source_encoding)
         codecs.open(filename, 'w', encoding='UTF-8-SIG').write(content)
     success_cnt+=1
