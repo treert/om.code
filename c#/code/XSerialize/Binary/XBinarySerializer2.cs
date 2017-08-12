@@ -82,7 +82,13 @@ namespace XSerialize.Binary
 
         public FieldInfo[] GetClassFieldInfos(Type type)
         {
-            return _class_fields[type];
+            FieldInfo[] ret;
+            if(_class_fields.TryGetValue(type, out ret) == false)
+            {
+                ret = XBinarySerializeClass.GetFieldInfos(type).ToArray();
+                _class_fields.Add(type, ret);
+            }
+            return ret;
         }
 
         public void Serialize(Stream stream, object obj)
@@ -162,7 +168,7 @@ namespace XSerialize.Binary
         {
             if (type.IsValueType)
             {
-                _type_handle_map[type].Write(this, writer, obj);// value type optmize, don't need type flag
+                GenerateTypeSerializer(type).Write(this, writer, obj);// value type optmize, don't need type flag
             }
             else
             {
@@ -200,7 +206,7 @@ namespace XSerialize.Binary
                 {
                     _writed_obj_ids.Add(obj, _writed_obj_ids.Count);// Must do before write to avoid loop
                 }
-                _type_handle_map[type].Write(this, writer, obj);
+                GenerateTypeSerializer(type).Write(this, writer, obj);
             }
         }
 
@@ -208,7 +214,7 @@ namespace XSerialize.Binary
         {
             if (type.IsValueType)
             {
-                return _type_handle_map[type].Read(this, reader, type);// value type optmize, don't need type flag
+                return GenerateTypeSerializer(type).Read(this, reader, type);// value type optmize, don't need type flag
             }
             else
             {
@@ -257,26 +263,27 @@ namespace XSerialize.Binary
                 // 取得实际类型
                 var type = _type_list[type_id];// 输入数据不对，会发生越界错误
                 int idx = _readed_objs.Count;// use to check: is class obj add to _readed_objs
-                var obj = _type_handle_map[type].Read(this, reader, type);// 输入数据不对，会发生读dic错误
+                var obj = GenerateTypeSerializer(type).Read(this, reader, type);// 输入数据不对，会发生读dic错误
                 if (type.IsValueType == false)
                 {
                     if (_readed_objs.Count == idx || _readed_objs[idx] != obj)
                     {
-                        throw new XSerializeException("Serializer {0} forget use InternalAddReadObjToCacheList", _type_handle_map[type]);
+                        throw new XSerializeException("Serializer {0} forget use InternalAddReadObjToCacheList", GenerateTypeSerializer(type));
                     }
                 }
                 return obj;
             }
         }
 
-        void GenerateTypeSerializer(Type type)
+        XBinarySerializerBase GenerateTypeSerializer(Type type)
         {
-            if(_type_handle_map.ContainsKey(type))
+            XBinarySerializerBase serializer;
+            if (_type_handle_map.TryGetValue(type, out serializer))
             {
-                return;
+                return serializer;
             }
 
-            var serializer = _custom_serializers.FirstOrDefault(h => h.Handles(type));
+            serializer = _custom_serializers.FirstOrDefault(h => h.Handles(type));
 
             if (serializer == null)
             {
@@ -287,6 +294,7 @@ namespace XSerialize.Binary
                 throw new NotSupportedException(String.Format("No serializer for {0}", type.FullName));
 
             _type_handle_map.Add(type, serializer);
+            return serializer;
         }
     }
 }

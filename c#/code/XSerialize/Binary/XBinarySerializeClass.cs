@@ -82,7 +82,7 @@ namespace XSerialize.Binary
             }
         }
 
-        static IEnumerable<FieldInfo> GetFieldInfos(Type type)
+        internal static IEnumerable<FieldInfo> GetFieldInfos(Type type)
         {
             var fields = type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
                 .Where(fi => (fi.Attributes & FieldAttributes.NotSerialized) == 0)// [NonSerialized]
