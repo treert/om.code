@@ -55,7 +55,7 @@ namespace XSerialize.Xml
                 }
                 serializer.ReadTypeEnd(reader);
             }
-            return null;
+            return obj;
         }
 
         bool ReadFieldStart(XmlReader reader, out string field_name, out bool is_null)
