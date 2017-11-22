@@ -27,10 +27,17 @@ namespace FileEncode
 
         private void ShowMessage(string msg)
         {
-            this.Invoke(new Action(() =>
+            if(InvokeRequired)
+            {
+                this.Invoke(new Action(() =>
+                {
+                    MessageBox.Show(msg);
+                }));
+            }
+            else
             {
                 MessageBox.Show(msg);
-            }));
+            }
         }
 
         private void UpdateFileListView()
