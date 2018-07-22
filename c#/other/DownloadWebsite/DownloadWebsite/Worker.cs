@@ -21,6 +21,8 @@ namespace DownloadWebsite
         public LinkedList<string> m_log_list = new LinkedList<string>();
         public HashSet<string> m_urls_set = new HashSet<string>();
         public string m_status = "";
+        public int m_thread_cnt = 0;
+        int m_thread_limit = 1;
 
         public void Init()
         {
@@ -41,10 +43,13 @@ namespace DownloadWebsite
 
         void RefreshStatus()
         {
-            var total_cnt = m_urls_set.Count;
-            var left_cnt = m_url_list.Count;
-            m_status = $"url info: left:{left_cnt,8} total: {total_cnt,8}";
-            RefreshLog();
+            lock (this)
+            {
+                var total_cnt = m_urls_set.Count;
+                var left_cnt = m_url_list.Count;
+                m_status = $" left:{left_cnt,8} total: {total_cnt,8} Thread:{m_thread_cnt}";
+                RefreshLog();
+            }
         }
 
         void RefreshLog()
@@ -60,12 +65,12 @@ namespace DownloadWebsite
                 node.Value += " " + msg;
                 RefreshLog();
             }
-
         }
 
-        public void StartDownload(string web_root, string save_dir, bool force_download)
+        public void StartDownload(string web_root, string save_dir, bool force_download, int thread_limit)
         {
             AbortDownload();
+            m_thread_limit = thread_limit;
             m_save_dir = save_dir;
             m_log_list.Clear();
             m_force_download = force_download;
@@ -120,23 +125,26 @@ namespace DownloadWebsite
         bool m_stoped = true;
         public void AbortDownload()
         {
-            lock (this)
-            {
-                m_stoped = true;
-                foreach(var thread in m_thread_list)
-                {
-                    if (thread.IsAlive) thread.Abort();
-                }
-                m_thread_list.Clear();
-            }
+            m_stoped = true;
+            //Log("stop", "wait for thread to exit");
+            //foreach (var thread in m_thread_list)
+            //{
+            //    if (thread.IsAlive) thread.Abort();
+            //}
+            //m_thread_list.Clear();
         }
 
         public bool IsWorking()
         {
-            lock (this)
-            {
-                return m_thread_list.Count > 0;
-            }
+            return m_thread_cnt > 0;
+            //lock (this)
+            //{
+            //    foreach (var th in m_thread_list)
+            //    {
+            //        if (th.IsAlive) return true;
+            //    }
+            //    return false;
+            //}
         }
 
         #region Html
@@ -168,9 +176,13 @@ namespace DownloadWebsite
         {
             lock (this)
             {
-                if (m_stoped) return;
+                if (m_stoped)
+                {
+                    return;
+                }
                 var cnt = m_url_list.Count;
-                var limit = Math.Log(cnt, 2) + 4;
+                //var limit = Math.Log(cnt, 2) + 4;
+                int limit = m_thread_limit;
                 int cur = 0;
                 var itor = m_thread_list.First;
                 while(itor != null)
@@ -187,10 +199,11 @@ namespace DownloadWebsite
                         itor = next;
                     }
                 }
-                if(cur == 1 && cnt == 0)
+                m_thread_cnt = cur;
+                if (cur == 1 && cnt == 0)
                 {
                     Log("finish", "Success");
-                    m_thread_list.Clear();
+                    
                     return;
                 }
                 if(cur < limit)
@@ -200,14 +213,17 @@ namespace DownloadWebsite
                     thread.Start();
                 }
             }
+            RefreshStatus();
         }
 
         void ThreadDownload()
         {
+            lock (this) { m_thread_cnt++; }
+            
             while (true)
             {
                 var url = GetUrl();
-                if (url == null) return;
+                if (url == null) break;
                 try
                 {
                     //var url_path = GetAbsoluteUrlPath(url);
@@ -251,6 +267,8 @@ namespace DownloadWebsite
                     Log("exception", e.Message);
                 }
             }
+            lock (this) { m_thread_cnt--; }
+            RefreshStatus();
         }
 
 
@@ -317,7 +335,7 @@ namespace DownloadWebsite
         {
             lock (this)
             {
-                if(m_url_list.Count > 0)
+                if(m_stoped == false && m_url_list.Count > 0)
                 {
                     return m_url_list.Dequeue().url;
                 }

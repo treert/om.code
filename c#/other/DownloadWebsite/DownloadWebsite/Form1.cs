@@ -69,8 +69,14 @@ namespace DownloadWebsite
                 MessageBox.Show("保存位置不能为空");
                 return;
             }
-            
-            Worker.singleton.StartDownload(web_root,save_dir,this.checkBox_force_down.Checked);
+
+            int cnt = 8;
+            if(int.TryParse(this.comboBox_thread_cnt.Text, out cnt) == false)
+            {
+                cnt = 8;
+            }
+            cnt = Math.Max(1, cnt);
+            Worker.singleton.StartDownload(web_root,save_dir,this.checkBox_force_down.Checked, cnt);
             RefreshUI();
         }
 
