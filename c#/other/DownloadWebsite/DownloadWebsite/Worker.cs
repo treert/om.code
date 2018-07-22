@@ -21,21 +21,22 @@ namespace DownloadWebsite
         public LinkedList<string> m_log_list = new LinkedList<string>();
         public HashSet<string> m_urls_set = new HashSet<string>();
         public string m_status = "";
-        Thread m_thread = null;
 
         public void Init()
         {
             m_save_dir = Path.Combine(Environment.CurrentDirectory, "website");
             m_log_list.Clear();
-            Log("test", "xxx");
-            Log("test", "xxx");
         }
 
-        void Log(string tag, string msg)
+        LinkedListNode<string> Log(string tag, string msg)
         {
-            var log = $"{tag,-10} {msg}";
-            m_log_list.AddFirst(log);
-            RefreshLog();
+            lock (this)
+            {
+                var log = $"{tag,-10} {msg}";
+                var node = m_log_list.AddFirst(log);
+                RefreshLog();
+                return node;
+            }
         }
 
         void RefreshStatus()
@@ -43,6 +44,7 @@ namespace DownloadWebsite
             var total_cnt = m_urls_set.Count;
             var left_cnt = m_url_list.Count;
             m_status = $"url info: left:{left_cnt,8} total: {total_cnt,8}";
+            RefreshLog();
         }
 
         void RefreshLog()
@@ -51,17 +53,14 @@ namespace DownloadWebsite
                 m_refresh_log();
         }
 
-        void LogToLastLine(string msg)
+        void LogToLastLine(LinkedListNode<string> node, string msg)
         {
-            if(m_log_list.Count > 0)
+            lock (this)
             {
-                m_log_list.First.Value += " " + msg;
+                node.Value += " " + msg;
+                RefreshLog();
             }
-            else
-            {
-                m_log_list.AddFirst(msg);
-            }
-            RefreshLog();
+
         }
 
         public void StartDownload(string web_root, string save_dir, bool force_download)
@@ -106,27 +105,38 @@ namespace DownloadWebsite
                     start_url = web_root;
                 }
             }
-            // 开线程下载
-            m_thread = new Thread(() =>
-            {
-                DownLoad(start_url);
-            });
 
-            m_thread.Start();
+            m_url_list.Clear();
+            m_urls_set.Clear();
+
+            AddUrl(start_url);
+
+            Log("start:", $"download website {start_url}");
+            // 开线程下载
+            m_stoped = false;
+            TryAddTheadToDownLoad();
         }
 
+        bool m_stoped = true;
         public void AbortDownload()
         {
-            if (m_thread != null)
+            lock (this)
             {
-                if (m_thread.IsAlive) m_thread.Abort();
-                m_thread = null;
+                m_stoped = true;
+                foreach(var thread in m_thread_list)
+                {
+                    if (thread.IsAlive) thread.Abort();
+                }
+                m_thread_list.Clear();
             }
         }
 
         public bool IsWorking()
         {
-            return m_thread != null && m_thread.IsAlive;
+            lock (this)
+            {
+                return m_thread_list.Count > 0;
+            }
         }
 
         #region Html
@@ -152,25 +162,56 @@ namespace DownloadWebsite
 
         Queue<UrlInfo> m_url_list = new Queue<UrlInfo>();
         bool m_force_download = false;
+        LinkedList<Thread> m_thread_list = new LinkedList<Thread>();
 
-        void DownLoad(string start_url)
+        void TryAddTheadToDownLoad()
         {
-            Directory.CreateDirectory(m_save_dir);
-            m_url_list.Clear();
-            m_urls_set.Clear();
-
-            AddUrl(start_url);
-
-            Log("start:",$"download website {start_url}");
-
-            while (m_url_list.Count > 0)
+            lock (this)
             {
-                var item = m_url_list.Dequeue();
-                var url = item.url;
+                if (m_stoped) return;
+                var cnt = m_url_list.Count;
+                var limit = Math.Log(cnt, 2) + 4;
+                int cur = 0;
+                var itor = m_thread_list.First;
+                while(itor != null)
+                {
+                    if (itor.Value.IsAlive)
+                    {
+                        cur++;
+                        itor = itor.Next;
+                    }
+                    else
+                    {
+                        var next = itor.Next;
+                        m_thread_list.Remove(itor);
+                        itor = next;
+                    }
+                }
+                if(cur == 1 && cnt == 0)
+                {
+                    Log("finish", "Success");
+                    m_thread_list.Clear();
+                    return;
+                }
+                if(cur < limit)
+                {
+                    var thread = new Thread(() => { ThreadDownload(); });
+                    m_thread_list.AddLast(thread);
+                    thread.Start();
+                }
+            }
+        }
+
+        void ThreadDownload()
+        {
+            while (true)
+            {
+                var url = GetUrl();
+                if (url == null) return;
                 try
                 {
                     //var url_path = GetAbsoluteUrlPath(url);
-                    Log("down=>", url);
+                    var node = Log("down=>", url);
 
                     var save_file = Path.Combine(m_save_dir, GetUrlPath(url).Replace(m_web_root, ""));
                     bool need_down = m_force_download || File.Exists(save_file) == false;
@@ -181,17 +222,17 @@ namespace DownloadWebsite
                         {
                             // 特殊处理，提取url，并且修改url
                             HandleHtml(reuslt.text, url);
-                            LogToLastLine("OK");
+                            LogToLastLine(node, "OK");
                         }
                         else if (reuslt.bytes != null)
                         {
                             Directory.CreateDirectory(Path.GetDirectoryName(save_file));
                             File.WriteAllBytes(save_file, reuslt.bytes);
-                            LogToLastLine("OK");
+                            LogToLastLine(node, "OK");
                         }
                         else
                         {
-                            LogToLastLine("【Error】");
+                            LogToLastLine(node, "【Error】");
                         }
                     }
                     else
@@ -200,15 +241,16 @@ namespace DownloadWebsite
                         {
                             HandleLocalHtml(save_file, url);
                         }
-                        LogToLastLine("cached");
+                        LogToLastLine(node, "cached");
                     }
+
+                    TryAddTheadToDownLoad();
                 }
-                catch(Exception e)
+                catch (Exception e)
                 {
                     Log("exception", e.Message);
                 }
             }
-            Log("finish", "Sucess");
         }
 
 
@@ -271,18 +313,34 @@ namespace DownloadWebsite
                 }
             }
         }
-
+        string GetUrl()
+        {
+            lock (this)
+            {
+                if(m_url_list.Count > 0)
+                {
+                    return m_url_list.Dequeue().url;
+                }
+                else
+                {
+                    return null;
+                }
+            }
+        }
         void AddUrl(string url)
         {
-            if (url == m_web_root) return;
-            var name = GetUrlFileName(url);
-            if (name.IndexOf('.') < 0) return;
-            var url_path = GetAbsoluteUrlPath(url);
-            if (m_urls_set.Contains(url_path) == false)
+            lock (this)
             {
-                m_url_list.Enqueue(new UrlInfo(UrlType.Html, url));
-                m_urls_set.Add(url_path);
-                RefreshStatus();
+                if (url == m_web_root) return;
+                var name = GetUrlFileName(url);
+                if (name.IndexOf('.') < 0) return;
+                var url_path = GetAbsoluteUrlPath(url);
+                if (m_urls_set.Contains(url_path) == false)
+                {
+                    m_url_list.Enqueue(new UrlInfo(UrlType.Html, url));
+                    m_urls_set.Add(url_path);
+                    RefreshStatus();
+                }
             }
         }
 

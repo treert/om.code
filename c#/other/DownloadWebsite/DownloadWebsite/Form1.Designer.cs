@@ -37,9 +37,9 @@
             this.label_save_dir = new System.Windows.Forms.Label();
             this.button2 = new System.Windows.Forms.Button();
             this.button3 = new System.Windows.Forms.Button();
+            this.checkBox_force_down = new System.Windows.Forms.CheckBox();
             this.label2 = new System.Windows.Forms.Label();
             this.label_status = new System.Windows.Forms.Label();
-            this.checkBox_force_down = new System.Windows.Forms.CheckBox();
             this.tableLayoutPanel1.SuspendLayout();
             this.tableLayoutPanel2.SuspendLayout();
             this.SuspendLayout();
@@ -163,6 +163,18 @@
             this.button3.UseVisualStyleBackColor = true;
             this.button3.Click += new System.EventHandler(this.button3_Click);
             // 
+            // checkBox_force_down
+            // 
+            this.checkBox_force_down.AutoSize = true;
+            this.checkBox_force_down.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.checkBox_force_down.Location = new System.Drawing.Point(475, 3);
+            this.checkBox_force_down.Name = "checkBox_force_down";
+            this.checkBox_force_down.Size = new System.Drawing.Size(74, 28);
+            this.checkBox_force_down.TabIndex = 3;
+            this.checkBox_force_down.Text = "强制下载";
+            this.checkBox_force_down.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            this.checkBox_force_down.UseVisualStyleBackColor = true;
+            // 
             // label2
             // 
             this.label2.AutoSize = true;
@@ -184,18 +196,6 @@
             this.label_status.TabIndex = 7;
             this.label_status.Text = "label3";
             this.label_status.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            // 
-            // checkBox_force_down
-            // 
-            this.checkBox_force_down.AutoSize = true;
-            this.checkBox_force_down.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.checkBox_force_down.Location = new System.Drawing.Point(475, 3);
-            this.checkBox_force_down.Name = "checkBox_force_down";
-            this.checkBox_force_down.Size = new System.Drawing.Size(74, 28);
-            this.checkBox_force_down.TabIndex = 3;
-            this.checkBox_force_down.Text = "强制下载";
-            this.checkBox_force_down.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            this.checkBox_force_down.UseVisualStyleBackColor = true;
             // 
             // Form1
             // 
