@@ -15,6 +15,7 @@ namespace DownloadWebsite
         public static Worker singleton = new Worker();
 
         public event Action m_refresh_log;
+        public event Action m_refresh_status;
 
         public string m_web_root = "";
         public string m_save_dir = "";
@@ -32,24 +33,28 @@ namespace DownloadWebsite
 
         LinkedListNode<string> Log(string tag, string msg)
         {
+            LinkedListNode<string> node = null;
             lock (this)
             {
                 var log = $"{tag,-10} {msg}";
-                var node = m_log_list.AddFirst(log);
-                RefreshLog();
-                return node;
+                node = m_log_list.AddFirst(log);
             }
+            RefreshLog();
+            return node;
         }
 
-        void RefreshStatus()
+        void RefreshStatus(bool exit = false)
         {
+            bool stop_finish = false;
             lock (this)
             {
+                stop_finish = m_stoped && m_thread_cnt == 1 && exit;// 最后一个线程退出时刷新状态。
                 var total_cnt = m_urls_set.Count;
                 var left_cnt = m_url_list.Count;
-                m_status = $" left:{left_cnt,8} total: {total_cnt,8} Thread:{m_thread_cnt}";
-                RefreshLog();
+                m_status = $" left:{left_cnt,-7} total: {total_cnt,-7} Thread:{m_thread_cnt,-3}";
             }
+            if (m_refresh_status != null) m_refresh_status();
+            if (stop_finish) Log("stop", "all thread stoped");
         }
 
         void RefreshLog()
@@ -63,8 +68,8 @@ namespace DownloadWebsite
             lock (this)
             {
                 node.Value += " " + msg;
-                RefreshLog();
             }
+            RefreshLog();
         }
 
         public void StartDownload(string web_root, string save_dir, bool force_download, int thread_limit)
@@ -125,8 +130,18 @@ namespace DownloadWebsite
         bool m_stoped = true;
         public void AbortDownload()
         {
-            m_stoped = true;
-            //Log("stop", "wait for thread to exit");
+            bool valid = false;
+            lock (this)
+            {
+                if (m_stoped == false)
+                {
+                    valid = true;
+                    m_stoped = true;
+                }
+            }
+            if (valid) { Log("stop", "wait for thread to exit"); }
+            
+            // 粗暴打断
             //foreach (var thread in m_thread_list)
             //{
             //    if (thread.IsAlive) thread.Abort();
@@ -136,15 +151,15 @@ namespace DownloadWebsite
 
         public bool IsWorking()
         {
-            return m_thread_cnt > 0;
-            //lock (this)
-            //{
-            //    foreach (var th in m_thread_list)
-            //    {
-            //        if (th.IsAlive) return true;
-            //    }
-            //    return false;
-            //}
+            //return m_thread_cnt > 0;
+            lock (this)
+            {
+                foreach (var th in m_thread_list)
+                {
+                    if (th.IsAlive) return true;
+                }
+                return false;
+            }
         }
 
         #region Html
@@ -174,6 +189,8 @@ namespace DownloadWebsite
 
         void TryAddTheadToDownLoad()
         {
+            bool finished = false;
+            bool added = false;
             lock (this)
             {
                 if (m_stoped)
@@ -199,21 +216,22 @@ namespace DownloadWebsite
                         itor = next;
                     }
                 }
-                m_thread_cnt = cur;
+                //m_thread_cnt = cur;
                 if (cur == 1 && cnt == 0)
                 {
-                    Log("finish", "Success");
-                    
+                    finished = true;
                     return;
                 }
                 if(cur < limit)
                 {
                     var thread = new Thread(() => { ThreadDownload(); });
                     m_thread_list.AddLast(thread);
+                    added = true;
                     thread.Start();
                 }
             }
-            RefreshStatus();
+            if(finished) Log("finish", "Success");
+            if(added) RefreshStatus();
         }
 
         void ThreadDownload()
@@ -234,7 +252,11 @@ namespace DownloadWebsite
                     if (need_down)
                     {
                         var reuslt = XHttp.GetData(url);
-                        if (reuslt.type == XHttp.ResponceType.Html)
+                        if(reuslt.error != null)
+                        {
+                            LogToLastLine(node, $"【Error:{reuslt.error}");
+                        }
+                        else if (reuslt.type == XHttp.ResponceType.Html)
                         {
                             // 特殊处理，提取url，并且修改url
                             HandleHtml(reuslt.text, url);
@@ -268,7 +290,7 @@ namespace DownloadWebsite
                 }
             }
             lock (this) { m_thread_cnt--; }
-            RefreshStatus();
+            RefreshStatus(true);
         }
 
 
@@ -312,6 +334,7 @@ namespace DownloadWebsite
             var nodes = doc.DocumentNode.SelectNodes($"{xpath}[@{attr_name}]");
             foreach(var node in nodes)
             {
+                if (m_stoped) break;
                 var attr = node.Attributes[attr_name];
                 var href = attr.Value;
                 try
@@ -327,7 +350,7 @@ namespace DownloadWebsite
                 }
                 catch(Exception e)
                 {
-                    Log("exception", $"HandleHtmlHref error {href}");
+                    Log("exception", $"HandleHtmlHref error:{e.Message} href:{href}");
                 }
             }
         }
@@ -347,19 +370,22 @@ namespace DownloadWebsite
         }
         void AddUrl(string url)
         {
+            if (url == m_web_root) return;
+            var name = GetUrlFileName(url);
+            if (name.IndexOf('.') < 0) return;
+            var url_path = GetAbsoluteUrlPath(url);
+
+            bool changed = false;
             lock (this)
             {
-                if (url == m_web_root) return;
-                var name = GetUrlFileName(url);
-                if (name.IndexOf('.') < 0) return;
-                var url_path = GetAbsoluteUrlPath(url);
                 if (m_urls_set.Contains(url_path) == false)
                 {
                     m_url_list.Enqueue(new UrlInfo(UrlType.Html, url));
                     m_urls_set.Add(url_path);
-                    RefreshStatus();
+                    changed = true;
                 }
             }
+            if(changed) RefreshStatus();
         }
 
         void FormatHref(string href, string c_url_dir, out string _url, out string _href)

@@ -17,8 +17,10 @@ namespace DownloadWebsite
             InitializeComponent();
 
             Worker.singleton.Init();
-            Worker.singleton.m_refresh_log += RefreshLog;
-            RefreshUI();
+            Worker.singleton.m_refresh_log += AsyncRefreshLog;
+            Worker.singleton.m_refresh_status += AsyncRefreshStatus;
+
+            RefreshStatusAndLogAndUI();
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -39,13 +41,35 @@ namespace DownloadWebsite
             }
         }
 
-        public void RefreshLog()
+        public void AsyncRefreshLog()
         {
             this.Invoke(new Action(() =>
             {
+                lock (Worker.singleton)
+                {
+                    this.richTextBox_log.Lines = Worker.singleton.m_log_list.ToArray();
+                }
+            }));
+        }
+
+        public void AsyncRefreshStatus()
+        {
+            this.Invoke(new Action(() =>
+            {
+                this.label_status.Text = Worker.singleton.m_status;
+                bool is_working = Worker.singleton.m_thread_cnt > 0;
+                this.textBox_web_root.ReadOnly = is_working;
+            }));
+        }
+
+        public void RefreshStatusAndLogAndUI()
+        {
+            lock (Worker.singleton)
+            {
                 this.richTextBox_log.Lines = Worker.singleton.m_log_list.ToArray();
                 this.label_status.Text = Worker.singleton.m_status;
-            }));
+            }
+            RefreshUI();
         }
 
         void RefreshUI()

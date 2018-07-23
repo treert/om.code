@@ -33,15 +33,15 @@
             this.button1 = new System.Windows.Forms.Button();
             this.richTextBox_log = new System.Windows.Forms.RichTextBox();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
+            this.tableLayoutPanel2 = new System.Windows.Forms.TableLayoutPanel();
+            this.label_save_dir = new System.Windows.Forms.Label();
+            this.button2 = new System.Windows.Forms.Button();
+            this.button3 = new System.Windows.Forms.Button();
+            this.checkBox_force_down = new System.Windows.Forms.CheckBox();
+            this.label3 = new System.Windows.Forms.Label();
+            this.comboBox_thread_cnt = new System.Windows.Forms.ComboBox();
             this.label2 = new System.Windows.Forms.Label();
             this.label_status = new System.Windows.Forms.Label();
-            this.label3 = new System.Windows.Forms.Label();
-            this.checkBox_force_down = new System.Windows.Forms.CheckBox();
-            this.button3 = new System.Windows.Forms.Button();
-            this.button2 = new System.Windows.Forms.Button();
-            this.label_save_dir = new System.Windows.Forms.Label();
-            this.tableLayoutPanel2 = new System.Windows.Forms.TableLayoutPanel();
-            this.comboBox_thread_cnt = new System.Windows.Forms.ComboBox();
             this.tableLayoutPanel1.SuspendLayout();
             this.tableLayoutPanel2.SuspendLayout();
             this.SuspendLayout();
@@ -112,85 +112,6 @@
             this.tableLayoutPanel1.Size = new System.Drawing.Size(798, 430);
             this.tableLayoutPanel1.TabIndex = 5;
             // 
-            // label2
-            // 
-            this.label2.AutoSize = true;
-            this.label2.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.label2.Location = new System.Drawing.Point(3, 400);
-            this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(74, 30);
-            this.label2.TabIndex = 6;
-            this.label2.Text = "状态";
-            this.label2.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            // 
-            // label_status
-            // 
-            this.label_status.AutoSize = true;
-            this.label_status.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.label_status.Location = new System.Drawing.Point(83, 400);
-            this.label_status.Name = "label_status";
-            this.label_status.Size = new System.Drawing.Size(712, 30);
-            this.label_status.TabIndex = 7;
-            this.label_status.Text = "label3";
-            this.label_status.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            // 
-            // label3
-            // 
-            this.label3.AutoSize = true;
-            this.label3.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.label3.Location = new System.Drawing.Point(355, 0);
-            this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(54, 34);
-            this.label3.TabIndex = 4;
-            this.label3.Text = "线程数";
-            this.label3.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            // 
-            // checkBox_force_down
-            // 
-            this.checkBox_force_down.AutoSize = true;
-            this.checkBox_force_down.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.checkBox_force_down.Location = new System.Drawing.Point(475, 3);
-            this.checkBox_force_down.Name = "checkBox_force_down";
-            this.checkBox_force_down.Size = new System.Drawing.Size(74, 28);
-            this.checkBox_force_down.TabIndex = 3;
-            this.checkBox_force_down.Text = "强制下载";
-            this.checkBox_force_down.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            this.checkBox_force_down.UseVisualStyleBackColor = true;
-            // 
-            // button3
-            // 
-            this.button3.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.button3.Location = new System.Drawing.Point(635, 3);
-            this.button3.Name = "button3";
-            this.button3.Size = new System.Drawing.Size(74, 28);
-            this.button3.TabIndex = 2;
-            this.button3.Text = "Cancel";
-            this.button3.UseVisualStyleBackColor = true;
-            this.button3.Click += new System.EventHandler(this.button3_Click);
-            // 
-            // button2
-            // 
-            this.button2.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.button2.Location = new System.Drawing.Point(555, 3);
-            this.button2.Name = "button2";
-            this.button2.Size = new System.Drawing.Size(74, 28);
-            this.button2.TabIndex = 1;
-            this.button2.Text = "DownLoad";
-            this.button2.UseVisualStyleBackColor = true;
-            this.button2.Click += new System.EventHandler(this.button2_Click);
-            // 
-            // label_save_dir
-            // 
-            this.label_save_dir.AutoSize = true;
-            this.label_save_dir.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.label_save_dir.ImageAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            this.label_save_dir.Location = new System.Drawing.Point(3, 0);
-            this.label_save_dir.Name = "label_save_dir";
-            this.label_save_dir.Size = new System.Drawing.Size(346, 34);
-            this.label_save_dir.TabIndex = 0;
-            this.label_save_dir.Text = "label_save_dir";
-            this.label_save_dir.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            // 
             // tableLayoutPanel2
             // 
             this.tableLayoutPanel2.ColumnCount = 6;
@@ -213,6 +134,63 @@
             this.tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
             this.tableLayoutPanel2.Size = new System.Drawing.Size(712, 34);
             this.tableLayoutPanel2.TabIndex = 5;
+            // 
+            // label_save_dir
+            // 
+            this.label_save_dir.AutoSize = true;
+            this.label_save_dir.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.label_save_dir.ImageAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            this.label_save_dir.Location = new System.Drawing.Point(3, 0);
+            this.label_save_dir.Name = "label_save_dir";
+            this.label_save_dir.Size = new System.Drawing.Size(346, 34);
+            this.label_save_dir.TabIndex = 0;
+            this.label_save_dir.Text = "label_save_dir";
+            this.label_save_dir.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            // 
+            // button2
+            // 
+            this.button2.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.button2.Location = new System.Drawing.Point(555, 3);
+            this.button2.Name = "button2";
+            this.button2.Size = new System.Drawing.Size(74, 28);
+            this.button2.TabIndex = 1;
+            this.button2.Text = "DownLoad";
+            this.button2.UseVisualStyleBackColor = true;
+            this.button2.Click += new System.EventHandler(this.button2_Click);
+            // 
+            // button3
+            // 
+            this.button3.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.button3.Location = new System.Drawing.Point(635, 3);
+            this.button3.Name = "button3";
+            this.button3.Size = new System.Drawing.Size(74, 28);
+            this.button3.TabIndex = 2;
+            this.button3.Text = "Cancel";
+            this.button3.UseVisualStyleBackColor = true;
+            this.button3.Click += new System.EventHandler(this.button3_Click);
+            // 
+            // checkBox_force_down
+            // 
+            this.checkBox_force_down.AutoSize = true;
+            this.checkBox_force_down.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.checkBox_force_down.Location = new System.Drawing.Point(475, 3);
+            this.checkBox_force_down.Name = "checkBox_force_down";
+            this.checkBox_force_down.Size = new System.Drawing.Size(74, 28);
+            this.checkBox_force_down.TabIndex = 3;
+            this.checkBox_force_down.Text = "强制下载";
+            this.checkBox_force_down.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            this.checkBox_force_down.UseVisualStyleBackColor = true;
+            // 
+            // label3
+            // 
+            this.label3.AutoSize = true;
+            this.label3.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.label3.Location = new System.Drawing.Point(355, 0);
+            this.label3.Name = "label3";
+            this.label3.Size = new System.Drawing.Size(54, 34);
+            this.label3.TabIndex = 4;
+            this.label3.Text = "线程数";
+            this.label3.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
             // comboBox_thread_cnt
             // 
@@ -240,6 +218,28 @@
             this.comboBox_thread_cnt.Size = new System.Drawing.Size(54, 20);
             this.comboBox_thread_cnt.TabIndex = 5;
             this.comboBox_thread_cnt.Text = "8";
+            // 
+            // label2
+            // 
+            this.label2.AutoSize = true;
+            this.label2.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.label2.Location = new System.Drawing.Point(3, 400);
+            this.label2.Name = "label2";
+            this.label2.Size = new System.Drawing.Size(74, 30);
+            this.label2.TabIndex = 6;
+            this.label2.Text = "状态";
+            this.label2.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            // 
+            // label_status
+            // 
+            this.label_status.AutoSize = true;
+            this.label_status.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.label_status.Location = new System.Drawing.Point(83, 400);
+            this.label_status.Name = "label_status";
+            this.label_status.Size = new System.Drawing.Size(712, 30);
+            this.label_status.TabIndex = 7;
+            this.label_status.Text = "label_status";
+            this.label_status.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
             // Form1
             // 

@@ -26,49 +26,69 @@ namespace DownloadWebsite
             public byte[] bytes;
             public string text;
             public ResponceType type;
+            public string error;
         }
         // > https://www.cnblogs.com/sun8134/archive/2010/07/05/1771187.html
         public static Result GetData(string url)
         {
             Result result = new Result();
-            using (WebClient client = new WebClient())
+            try
             {
-                result.bytes = client.DownloadData(url);
-                result.ContentType = "";
-                if (client.ResponseHeaders != null)
+                using (WebClient client = new WebClient())
                 {
-                    result.ContentType = client.ResponseHeaders.Get("Content-Type") ?? "";
-                }
+                    result.bytes = client.DownloadData(url);
+                    if (result.bytes == null)
+                    {
+                        result.error = $"XHttp.error msg:get none data";
+                    }
+                    result.ContentType = "";
+                    if (client.ResponseHeaders != null)
+                    {
+                        result.ContentType = client.ResponseHeaders.Get("Content-Type") ?? "";
+                    }
+                    else
+                    {
+                        result.error = $"XHttp.error  msg:get none Headers";
+                    }
 
-                if (result.ContentType == "text/html")
-                {
-                    result.type = ResponceType.Html;
-                    result.text = Encoding.UTF8.GetString(result.bytes);
-                }
-                else if (result.ContentType == "text/css")
-                {
-                    result.type = ResponceType.Css;
-                    result.text = Encoding.UTF8.GetString(result.bytes);
-                }
-                else if (result.ContentType == "application/javascript")
-                {
-                    result.type = ResponceType.Js;
-                    result.text = Encoding.UTF8.GetString(result.bytes);
-                }
-                else if (result.ContentType.StartsWith("text/"))
-                {
-                    result.type = ResponceType.Text;
-                    result.text = Encoding.UTF8.GetString(result.bytes);
-                }
-                else if (result.ContentType.StartsWith("image/"))
-                {
-                    result.type = ResponceType.Image;
-                }
-                else
-                {
-                    result.type = ResponceType.Other;
+                    if(result.error == null)
+                    {
+                        if (result.ContentType == "text/html")
+                        {
+                            result.type = ResponceType.Html;
+                            result.text = Encoding.UTF8.GetString(result.bytes);
+                        }
+                        else if (result.ContentType == "text/css")
+                        {
+                            result.type = ResponceType.Css;
+                            result.text = Encoding.UTF8.GetString(result.bytes);
+                        }
+                        else if (result.ContentType == "application/javascript")
+                        {
+                            result.type = ResponceType.Js;
+                            result.text = Encoding.UTF8.GetString(result.bytes);
+                        }
+                        else if (result.ContentType.StartsWith("text/"))
+                        {
+                            result.type = ResponceType.Text;
+                            result.text = Encoding.UTF8.GetString(result.bytes);
+                        }
+                        else if (result.ContentType.StartsWith("image/"))
+                        {
+                            result.type = ResponceType.Image;
+                        }
+                        else
+                        {
+                            result.type = ResponceType.Other;
+                        }
+                    }
                 }
             }
+            catch(Exception e)
+            {
+                result.error = $"XHttp.exception msg: {e.Message}";
+            }
+
             return result;
         }
     }
