@@ -24,6 +24,7 @@ namespace DownloadWebsite
         public string m_status = "";
         public int m_thread_cnt = 0;
         int m_thread_limit = 1;
+        int m_error_url_cnt = 0;
 
         public void Init()
         {
@@ -52,7 +53,7 @@ namespace DownloadWebsite
                 stop_finish = m_stoped && m_thread_cnt == 0 && exit;// 最后一个线程退出时刷新状态。
                 var total_cnt = m_urls_set.Count;
                 var left_cnt = m_url_list.Count;
-                m_status = $" left:{left_cnt,-7} total: {total_cnt,-7} Thread:{m_thread_cnt,-3}";
+                m_status = $" left:{left_cnt,-7} error:{m_error_url_cnt,-7} total:{total_cnt,-7} Thread:{m_thread_cnt,-3}";
             }
             if (m_refresh_status != null) m_refresh_status();
             if (stop_finish) Log("stop", "all thread stoped");
@@ -76,6 +77,7 @@ namespace DownloadWebsite
         public void StartDownload(string web_root, string save_dir, bool force_download, int thread_limit)
         {
             AbortDownload();
+            m_error_url_cnt = 0;
             m_thread_limit = thread_limit;
             m_save_dir = save_dir;
             m_log_list.Clear();
@@ -253,21 +255,29 @@ namespace DownloadWebsite
                     bool need_down = m_force_download || File.Exists(save_file) == false;
                     if (need_down)
                     {
-                        var reuslt = XHttp.GetData(url);
-                        if(reuslt.error != null)
+                        var result = XHttp.GetData(url);
+                        if(result.error != null)
                         {
-                            status_str = $"【Error:{reuslt.error}";
+                            status_str = $"【Error:{result.error}";
+                            m_error_url_cnt++;
                         }
-                        else if (reuslt.type == XHttp.ResponceType.Html)
+                        else if (result.type == XHttp.ResponceType.Html)
                         {
                             // 特殊处理，提取url，并且修改url
-                            HandleHtml(reuslt.text, url);
+                            HandleHtml(result.text, url);
+                            status_str = "OK";
+                        }
+                        else if (result.type == XHttp.ResponceType.Css)
+                        {
+                            HandleCss(result.text, url);
+                            Directory.CreateDirectory(Path.GetDirectoryName(save_file));
+                            File.WriteAllBytes(save_file, result.bytes);
                             status_str = "OK";
                         }
                         else
                         {
                             Directory.CreateDirectory(Path.GetDirectoryName(save_file));
-                            File.WriteAllBytes(save_file, reuslt.bytes);
+                            File.WriteAllBytes(save_file, result.bytes);
                             status_str = "OK";
                         }
                     }
@@ -277,6 +287,10 @@ namespace DownloadWebsite
                         {
                             HandleLocalHtml(save_file, url);
                         }
+                        else if(save_file.EndsWith(".css") == true)
+                        {
+                            HandleCssFile(save_file, url);
+                        }
                         status_str = "cached";
                     }
                     Log("down=>", $"{url} {status_str}");
@@ -285,10 +299,37 @@ namespace DownloadWebsite
                 catch (Exception e)
                 {
                     Log("exception", $"{url} {e.Message}");
+                    m_error_url_cnt++;
                 }
             }
             lock (this) { m_thread_cnt--; }
             RefreshStatus(true);
+        }
+
+        Regex m_reg_css_url = new Regex(@"\s+url\((\S*)\)");
+        void HandleCss(string content, string url)
+        {
+            var url_dir = GetUrlDir(url);
+            var matches = m_reg_css_url.Matches(content);
+            foreach(Match match in matches)
+            {
+                var href = match.Groups[1].Value;
+                href = href.Trim().Trim('"', '\'');
+                if(string.IsNullOrEmpty(href) || href.StartsWith("/") || href.Contains("//"))
+                {
+
+                }
+                else
+                {
+                    AddUrl(url_dir + href);
+                }
+            }
+        }
+
+        void HandleCssFile(string file, string url)
+        {
+            var content = File.ReadAllText(file);
+            HandleCss(content, url);
         }
 
 
@@ -298,16 +339,7 @@ namespace DownloadWebsite
             var doc = new HtmlDocument();
             doc.LoadHtml(html);
 
-            var url_dir = GetUrlDir(url);
-            
-            HandleHtmlHrefs(doc, url_dir, "//link[@type='text/css']", "href");
-            HandleHtmlHrefs(doc, url_dir, "//script[@type='text/javascript']", "src");
-            HandleHtmlHrefs(doc, url_dir, "//a", "href");
-
-            // save html
-            var save_file = Path.Combine(m_save_dir, GetUrlPath(url).Replace(m_web_root, ""));
-            Directory.CreateDirectory(Path.GetDirectoryName(save_file));
-            doc.Save(save_file);
+            HandleLocalHtml(doc, url);
         }
 
         void HandleLocalHtml(string file, string url)
@@ -315,11 +347,17 @@ namespace DownloadWebsite
             var doc = new HtmlDocument();
             doc.Load(file);
 
+            HandleLocalHtml(doc, url);
+        }
+
+        void HandleLocalHtml(HtmlDocument doc, string url)
+        {
             var url_dir = GetUrlDir(url);
 
             HandleHtmlHrefs(doc, url_dir, "//link[@type='text/css']", "href");
             HandleHtmlHrefs(doc, url_dir, "//script[@type='text/javascript']", "src");
             HandleHtmlHrefs(doc, url_dir, "//a", "href");
+            HandleHtmlHrefs(doc, url_dir, "//img", "src");
 
             // save html
             var save_file = Path.Combine(m_save_dir, GetUrlPath(url).Replace(m_web_root, ""));
@@ -327,9 +365,11 @@ namespace DownloadWebsite
             doc.Save(save_file);
         }
 
+
         void HandleHtmlHrefs(HtmlDocument doc, string c_url_dir,string xpath, string attr_name)
         {
             var nodes = doc.DocumentNode.SelectNodes($"{xpath}[@{attr_name}]");
+            if (nodes == null) return;
             foreach(var node in nodes)
             {
                 if (m_stoped) break;
@@ -423,7 +463,7 @@ namespace DownloadWebsite
                 _href = href;
                 Regex reg = new Regex(@"^\w{1,10}:");
                 // 已经是相对地址了，
-                if (string.IsNullOrWhiteSpace(href) || href.StartsWith("#") || reg.IsMatch(href))
+                if (string.IsNullOrWhiteSpace(href) || href.StartsWith("#") || href.StartsWith("/") || reg.IsMatch(href))
                 {
                     _url = null;
                 }
