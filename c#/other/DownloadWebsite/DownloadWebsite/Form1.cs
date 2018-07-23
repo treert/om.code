@@ -17,7 +17,7 @@ namespace DownloadWebsite
             InitializeComponent();
 
             Worker.singleton.Init();
-            Worker.singleton.m_refresh_log += AsyncRefreshLog;
+            Worker.singleton.m_add_log += AsyncAddLog;
             Worker.singleton.m_refresh_status += AsyncRefreshStatus;
 
             RefreshStatusAndLogAndUI();
@@ -41,15 +41,24 @@ namespace DownloadWebsite
             }
         }
 
-        public void AsyncRefreshLog()
+        public void AsyncAddLog(string msg)
         {
             this.Invoke(new Action(() =>
             {
-                lock (Worker.singleton)
-                {
-                    this.richTextBox_log.Lines = Worker.singleton.m_log_list.ToArray();
-                }
+                this.richTextBox_log.AppendText(msg+"\n");
+                ScrollLogToEnd();
+                //lock (Worker.singleton)
+                //{
+                //    this.richTextBox_log.Lines = Worker.singleton.m_log_list.ToArray();
+                //}
             }));
+        }
+
+        // > https://stackoverflow.com/questions/9416608/rich-text-box-scroll-to-the-bottom-when-new-data-is-written-to-it
+        void ScrollLogToEnd()
+        {
+            this.richTextBox_log.SelectionStart = this.richTextBox_log.Text.Length;
+            this.richTextBox_log.ScrollToCaret();
         }
 
         public void AsyncRefreshStatus()
@@ -64,12 +73,14 @@ namespace DownloadWebsite
 
         public void RefreshStatusAndLogAndUI()
         {
-            lock (Worker.singleton)
-            {
-                this.richTextBox_log.Lines = Worker.singleton.m_log_list.ToArray();
-                this.label_status.Text = Worker.singleton.m_status;
-            }
+            this.ClearLog();
+            this.label_status.Text = Worker.singleton.m_status;
             RefreshUI();
+        }
+
+        void ClearLog()
+        {
+            this.richTextBox_log.Clear();
         }
 
         void RefreshUI()
@@ -100,6 +111,8 @@ namespace DownloadWebsite
                 cnt = 8;
             }
             cnt = Math.Max(1, cnt);
+
+            this.ClearLog();
             Worker.singleton.StartDownload(web_root,save_dir,this.checkBox_force_down.Checked, cnt);
             RefreshUI();
         }

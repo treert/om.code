@@ -14,7 +14,7 @@ namespace DownloadWebsite
     {
         public static Worker singleton = new Worker();
 
-        public event Action m_refresh_log;
+        public event Action<string> m_add_log;
         public event Action m_refresh_status;
 
         public string m_web_root = "";
@@ -33,13 +33,14 @@ namespace DownloadWebsite
 
         LinkedListNode<string> Log(string tag, string msg)
         {
+            var log = $"{DateTime.Now.ToString("T")} {tag,-10} {msg}";
             LinkedListNode<string> node = null;
-            lock (this)
-            {
-                var log = $"{tag,-10} {msg}";
-                node = m_log_list.AddFirst(log);
-            }
-            RefreshLog();
+            //lock (this)
+            //{
+                
+            //    node = m_log_list.AddFirst(log);
+            //}
+            AddLogToUI(log);
             return node;
         }
 
@@ -48,7 +49,7 @@ namespace DownloadWebsite
             bool stop_finish = false;
             lock (this)
             {
-                stop_finish = m_stoped && m_thread_cnt == 1 && exit;// 最后一个线程退出时刷新状态。
+                stop_finish = m_stoped && m_thread_cnt == 0 && exit;// 最后一个线程退出时刷新状态。
                 var total_cnt = m_urls_set.Count;
                 var left_cnt = m_url_list.Count;
                 m_status = $" left:{left_cnt,-7} total: {total_cnt,-7} Thread:{m_thread_cnt,-3}";
@@ -57,20 +58,20 @@ namespace DownloadWebsite
             if (stop_finish) Log("stop", "all thread stoped");
         }
 
-        void RefreshLog()
+        void AddLogToUI(string msg)
         {
-            if (m_refresh_log != null)
-                m_refresh_log();
+            if (m_add_log != null)
+                m_add_log(msg);
         }
 
-        void LogToLastLine(LinkedListNode<string> node, string msg)
-        {
-            lock (this)
-            {
-                node.Value += " " + msg;
-            }
-            RefreshLog();
-        }
+        //void LogToLastLine(LinkedListNode<string> node, string msg)
+        //{
+        //    lock (this)
+        //    {
+        //        node.Value += " " + msg;
+        //    }
+        //    RefreshLog();
+        //}
 
         public void StartDownload(string web_root, string save_dir, bool force_download, int thread_limit)
         {
@@ -245,8 +246,7 @@ namespace DownloadWebsite
                 try
                 {
                     //var url_path = GetAbsoluteUrlPath(url);
-                    var node = Log("down=>", url);
-
+                    string status_str = "[?]";
                     var save_file = Path.Combine(m_save_dir, GetUrlPath(url).Replace(m_web_root, ""));
                     bool need_down = m_force_download || File.Exists(save_file) == false;
                     if (need_down)
@@ -254,23 +254,19 @@ namespace DownloadWebsite
                         var reuslt = XHttp.GetData(url);
                         if(reuslt.error != null)
                         {
-                            LogToLastLine(node, $"【Error:{reuslt.error}");
+                            status_str = $"【Error:{reuslt.error}";
                         }
                         else if (reuslt.type == XHttp.ResponceType.Html)
                         {
                             // 特殊处理，提取url，并且修改url
                             HandleHtml(reuslt.text, url);
-                            LogToLastLine(node, "OK");
-                        }
-                        else if (reuslt.bytes != null)
-                        {
-                            Directory.CreateDirectory(Path.GetDirectoryName(save_file));
-                            File.WriteAllBytes(save_file, reuslt.bytes);
-                            LogToLastLine(node, "OK");
+                            status_str = "OK";
                         }
                         else
                         {
-                            LogToLastLine(node, "【Error】");
+                            Directory.CreateDirectory(Path.GetDirectoryName(save_file));
+                            File.WriteAllBytes(save_file, reuslt.bytes);
+                            status_str = "OK";
                         }
                     }
                     else
@@ -279,14 +275,14 @@ namespace DownloadWebsite
                         {
                             HandleLocalHtml(save_file, url);
                         }
-                        LogToLastLine(node, "cached");
+                        status_str = "cached";
                     }
-
+                    Log("down=>", $"{url} {status_str}");
                     TryAddTheadToDownLoad();
                 }
                 catch (Exception e)
                 {
-                    Log("exception", e.Message);
+                    Log("exception", $"{url} {e.Message}");
                 }
             }
             lock (this) { m_thread_cnt--; }
