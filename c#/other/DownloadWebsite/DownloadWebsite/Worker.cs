@@ -243,6 +243,7 @@ namespace DownloadWebsite
             while (true)
             {
                 var url = GetUrl();
+                RefreshStatus();
                 if (url == null) break;
                 try
                 {
