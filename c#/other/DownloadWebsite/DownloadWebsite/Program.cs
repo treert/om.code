@@ -21,15 +21,15 @@ namespace DownloadWebsite
         {
 
 
-            // > https://blog.csdn.net/zcalll/article/details/6590879
-            AllocConsole();
+            //// > https://blog.csdn.net/zcalll/article/details/6590879
+            //AllocConsole();
 
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new Form1());
 
-            FreeConsole();
+            //FreeConsole();
         }
     }
 }

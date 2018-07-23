@@ -20,6 +20,11 @@ namespace DownloadWebsite
             Worker.singleton.m_add_log += AsyncAddLog;
             Worker.singleton.m_refresh_status += AsyncRefreshStatus;
 
+            //richTextBox_log.VScroll += (object sender, EventArgs e) => {
+            //    // ??
+            //};
+            this.button_auto_scroll_log.Text = m_auto_scroll_log ? "停止滚动" : "自动滚动";
+
             RefreshStatusAndLogAndUI();
         }
 
@@ -46,6 +51,7 @@ namespace DownloadWebsite
             this.Invoke(new Action(() =>
             {
                 this.richTextBox_log.AppendText(msg+"\n");
+                
                 ScrollLogToEnd();
                 //lock (Worker.singleton)
                 //{
@@ -57,8 +63,11 @@ namespace DownloadWebsite
         // > https://stackoverflow.com/questions/9416608/rich-text-box-scroll-to-the-bottom-when-new-data-is-written-to-it
         void ScrollLogToEnd()
         {
-            this.richTextBox_log.SelectionStart = this.richTextBox_log.Text.Length;
-            this.richTextBox_log.ScrollToCaret();
+            if (m_auto_scroll_log)
+            {
+                this.richTextBox_log.SelectionStart = this.richTextBox_log.Text.Length;
+                this.richTextBox_log.ScrollToCaret();
+            }
         }
 
         public void AsyncRefreshStatus()
@@ -120,7 +129,19 @@ namespace DownloadWebsite
         private void button3_Click(object sender, EventArgs e)
         {
             Worker.singleton.AbortDownload();
-            RefreshUI();
+            //RefreshUI();
+        }
+
+        private void richTextBox_log_VScroll(object sender, EventArgs e)
+        {
+
+        }
+
+        bool m_auto_scroll_log = false;// 会卡
+        private void button_auto_scroll_log_Click(object sender, EventArgs e)
+        {
+            m_auto_scroll_log = !m_auto_scroll_log;
+            this.button_auto_scroll_log.Text = m_auto_scroll_log ? "停止滚动" : "自动滚动";
         }
     }
 }

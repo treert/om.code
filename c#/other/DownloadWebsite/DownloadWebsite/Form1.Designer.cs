@@ -40,8 +40,8 @@
             this.checkBox_force_down = new System.Windows.Forms.CheckBox();
             this.label3 = new System.Windows.Forms.Label();
             this.comboBox_thread_cnt = new System.Windows.Forms.ComboBox();
-            this.label2 = new System.Windows.Forms.Label();
             this.label_status = new System.Windows.Forms.Label();
+            this.button_auto_scroll_log = new System.Windows.Forms.Button();
             this.tableLayoutPanel1.SuspendLayout();
             this.tableLayoutPanel2.SuspendLayout();
             this.SuspendLayout();
@@ -88,6 +88,7 @@
             this.richTextBox_log.Size = new System.Drawing.Size(792, 324);
             this.richTextBox_log.TabIndex = 4;
             this.richTextBox_log.Text = "1\n2";
+            this.richTextBox_log.VScroll += new System.EventHandler(this.richTextBox_log_VScroll);
             // 
             // tableLayoutPanel1
             // 
@@ -99,8 +100,8 @@
             this.tableLayoutPanel1.Controls.Add(this.textBox_web_root, 1, 0);
             this.tableLayoutPanel1.Controls.Add(this.label1, 0, 0);
             this.tableLayoutPanel1.Controls.Add(this.tableLayoutPanel2, 1, 1);
-            this.tableLayoutPanel1.Controls.Add(this.label2, 0, 3);
             this.tableLayoutPanel1.Controls.Add(this.label_status, 1, 3);
+            this.tableLayoutPanel1.Controls.Add(this.button_auto_scroll_log, 0, 3);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanel1.Location = new System.Drawing.Point(0, 0);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
@@ -217,18 +218,7 @@
             this.comboBox_thread_cnt.Name = "comboBox_thread_cnt";
             this.comboBox_thread_cnt.Size = new System.Drawing.Size(54, 20);
             this.comboBox_thread_cnt.TabIndex = 5;
-            this.comboBox_thread_cnt.Text = "8";
-            // 
-            // label2
-            // 
-            this.label2.AutoSize = true;
-            this.label2.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.label2.Location = new System.Drawing.Point(3, 400);
-            this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(74, 30);
-            this.label2.TabIndex = 6;
-            this.label2.Text = "状态";
-            this.label2.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            this.comboBox_thread_cnt.Text = "4";
             // 
             // label_status
             // 
@@ -240,6 +230,17 @@
             this.label_status.TabIndex = 7;
             this.label_status.Text = "label_status";
             this.label_status.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            // 
+            // button_auto_scroll_log
+            // 
+            this.button_auto_scroll_log.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.button_auto_scroll_log.Location = new System.Drawing.Point(3, 403);
+            this.button_auto_scroll_log.Name = "button_auto_scroll_log";
+            this.button_auto_scroll_log.Size = new System.Drawing.Size(74, 24);
+            this.button_auto_scroll_log.TabIndex = 8;
+            this.button_auto_scroll_log.Text = "自动滚动";
+            this.button_auto_scroll_log.UseVisualStyleBackColor = true;
+            this.button_auto_scroll_log.Click += new System.EventHandler(this.button_auto_scroll_log_Click);
             // 
             // Form1
             // 
@@ -264,7 +265,6 @@
         private System.Windows.Forms.Button button1;
         private System.Windows.Forms.RichTextBox richTextBox_log;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel1;
-        private System.Windows.Forms.Label label2;
         private System.Windows.Forms.Label label_status;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel2;
         private System.Windows.Forms.Label label_save_dir;
@@ -273,6 +273,7 @@
         private System.Windows.Forms.CheckBox checkBox_force_down;
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.ComboBox comboBox_thread_cnt;
+        private System.Windows.Forms.Button button_auto_scroll_log;
     }
 }
 

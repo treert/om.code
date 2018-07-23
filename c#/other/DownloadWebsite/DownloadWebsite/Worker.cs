@@ -226,6 +226,7 @@ namespace DownloadWebsite
                 if(cur < limit)
                 {
                     var thread = new Thread(() => { ThreadDownload(); });
+                    thread.IsBackground = true;
                     m_thread_list.AddLast(thread);
                     added = true;
                     thread.Start();
