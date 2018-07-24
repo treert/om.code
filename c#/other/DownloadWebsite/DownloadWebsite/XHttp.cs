@@ -34,7 +34,7 @@ namespace DownloadWebsite
             Result result = new Result();
             try
             {
-                using (WebClient client = new WebClient())
+                using (WebClient client = new XWebClient())
                 {
                     result.bytes = client.DownloadData(url);
                     if (result.bytes == null)
@@ -91,5 +91,26 @@ namespace DownloadWebsite
 
             return result;
         }
+    }
+
+    // 让WebClient支持超时时间
+    // > https://blog.csdn.net/shellching/article/details/78354029
+    public class XWebClient : WebClient
+    {
+        private int _timeout = 60 * 1000;// 默认60秒
+        public int Timeout { get { return _timeout; } set { _timeout = value; } }
+
+        public XWebClient()
+        {
+    
+        }
+
+        protected override WebRequest GetWebRequest(Uri address)
+        {
+            var request = base.GetWebRequest(address);
+            request.Timeout = Timeout;
+            return request;
+        }
+
     }
 }

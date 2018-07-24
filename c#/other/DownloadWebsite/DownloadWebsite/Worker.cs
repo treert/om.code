@@ -50,13 +50,19 @@ namespace DownloadWebsite
             bool stop_finish = false;
             lock (this)
             {
-                stop_finish = m_stoped && m_thread_cnt == 0 && exit;// 最后一个线程退出时刷新状态。
+                stop_finish = m_thread_cnt == 0 && exit;// 最后一个线程退出时刷新状态。
                 var total_cnt = m_urls_set.Count;
                 var left_cnt = m_url_list.Count;
                 m_status = $" left:{left_cnt,-7} error:{m_error_url_cnt,-7} total:{total_cnt,-7} Thread:{m_thread_cnt,-3}";
             }
             if (m_refresh_status != null) m_refresh_status();
-            if (stop_finish) Log("stop", "all thread stoped");
+            if (stop_finish)
+            {
+                if (m_stoped)
+                    Log("stop", "all thread stoped");
+                else
+                    Log("finish", "Success");
+            }
         }
 
         void AddLogToUI(string msg)
@@ -192,7 +198,6 @@ namespace DownloadWebsite
 
         void TryAddTheadToDownLoad()
         {
-            bool finished = false;
             bool added = false;
             lock (this)
             {
@@ -220,12 +225,7 @@ namespace DownloadWebsite
                     }
                 }
                 //m_thread_cnt = cur;
-                if (cur == 1 && cnt == 0)
-                {
-                    finished = true;
-                    return;
-                }
-                if(cur < limit)
+                if(cnt > 0 && cur < limit)
                 {
                     var thread = new Thread(() => { ThreadDownload(); });
                     thread.IsBackground = true;
@@ -234,7 +234,6 @@ namespace DownloadWebsite
                     thread.Start();
                 }
             }
-            if(finished) Log("finish", "Success");
             if(added) RefreshStatus();
         }
 

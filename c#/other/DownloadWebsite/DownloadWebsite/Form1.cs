@@ -42,7 +42,7 @@ namespace DownloadWebsite
 
             if(dialog.ShowDialog() == DialogResult.OK)
             {
-                this.label_save_dir.Text = dialog.SelectedPath;
+                this.linkLabel_save_dir.Text = dialog.SelectedPath;
             }
         }
 
@@ -96,7 +96,7 @@ namespace DownloadWebsite
         {
             bool is_working = Worker.singleton.IsWorking();
             this.textBox_web_root.ReadOnly = is_working;
-            this.label_save_dir.Text = Worker.singleton.m_save_dir;
+            this.linkLabel_save_dir.Text = Worker.singleton.m_save_dir;
         }
 
         private void button2_Click(object sender, EventArgs e)
@@ -107,7 +107,7 @@ namespace DownloadWebsite
                 MessageBox.Show("先选择网址");
                 return;
             }
-            var save_dir = this.label_save_dir.Text;
+            var save_dir = this.linkLabel_save_dir.Text;
             if (string.IsNullOrEmpty(save_dir))
             {
                 MessageBox.Show("保存位置不能为空");
@@ -142,6 +142,28 @@ namespace DownloadWebsite
         {
             m_auto_scroll_log = !m_auto_scroll_log;
             this.button_auto_scroll_log.Text = m_auto_scroll_log ? "停止滚动" : "自动滚动";
+        }
+
+        // 打开资源管理器
+        // > https://blog.csdn.net/chen8643766/article/details/19755639
+        public static void OpenExplorer(string dir)
+        {
+            System.Diagnostics.Process.Start("Explorer.exe", dir);
+        }
+
+        public static void OpenDirWithDefaultProgram(string dir)
+        {
+            System.Diagnostics.Process.Start(dir);
+        }
+
+        private void richTextBox_log_LinkClicked(object sender, LinkClickedEventArgs e)
+        {
+            OpenDirWithDefaultProgram(e.LinkText);
+        }
+
+        private void linkLabel1_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        {
+            OpenExplorer(this.linkLabel_save_dir.Text);
         }
     }
 }
