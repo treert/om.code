@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -15,8 +16,7 @@ namespace DownloadWebsite
         public Form1()
         {
             InitializeComponent();
-
-            Worker.singleton.Init();
+            
             Worker.singleton.m_add_log += AsyncAddLog;
             Worker.singleton.m_refresh_status += AsyncRefreshStatus;
 
@@ -43,6 +43,7 @@ namespace DownloadWebsite
             if(dialog.ShowDialog() == DialogResult.OK)
             {
                 this.linkLabel_save_dir.Text = dialog.SelectedPath;
+                XConfig.SetString(s_key_save_dir, dialog.SelectedPath);
             }
         }
 
@@ -92,11 +93,19 @@ namespace DownloadWebsite
             this.richTextBox_log.Clear();
         }
 
+        static readonly string s_key_save_dir = "last.save.dir";
+        static readonly string s_key_website = "last.website";
+        static readonly string s_key_cpu_num = "last.cpu.num";
         void RefreshUI()
         {
             bool is_working = Worker.singleton.IsWorking();
             this.textBox_web_root.ReadOnly = is_working;
-            this.linkLabel_save_dir.Text = Worker.singleton.m_save_dir;
+            var def_save_dir = Path.Combine(Environment.CurrentDirectory, "website");
+            var def_website = "";
+
+            this.linkLabel_save_dir.Text = XConfig.GetString(s_key_save_dir,def_save_dir);
+            this.textBox_web_root.Text = XConfig.GetString(s_key_website, def_website);
+            this.comboBox_thread_cnt.Text = XConfig.GetString(s_key_cpu_num, "4");
         }
 
         private void button2_Click(object sender, EventArgs e)
@@ -113,13 +122,16 @@ namespace DownloadWebsite
                 MessageBox.Show("保存位置不能为空");
                 return;
             }
-
-            int cnt = 8;
+            
+            int cnt = 4;
             if(int.TryParse(this.comboBox_thread_cnt.Text, out cnt) == false)
             {
-                cnt = 8;
+                cnt = 4;
             }
             cnt = Math.Max(1, cnt);
+
+            XConfig.SetString(s_key_cpu_num, cnt.ToString());
+            XConfig.SetString(s_key_website, web_root);
 
             this.ClearLog();
             Worker.singleton.StartDownload(web_root,save_dir,this.checkBox_force_down.Checked, cnt);
@@ -164,6 +176,16 @@ namespace DownloadWebsite
         private void linkLabel1_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {
             OpenExplorer(this.linkLabel_save_dir.Text);
+        }
+
+        private void comboBox_thread_cnt_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            XConfig.SetString(s_key_cpu_num, this.comboBox_thread_cnt.Text);
+        }
+
+        private void textBox_web_root_TextChanged(object sender, EventArgs e)
+        {
+            XConfig.SetString(s_key_website, this.textBox_web_root.Text);
         }
     }
 }

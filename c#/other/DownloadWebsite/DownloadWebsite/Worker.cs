@@ -26,12 +26,6 @@ namespace DownloadWebsite
         int m_thread_limit = 1;
         int m_error_url_cnt = 0;
 
-        public void Init()
-        {
-            m_save_dir = Path.Combine(Environment.CurrentDirectory, "website");
-            m_log_list.Clear();
-        }
-
         LinkedListNode<string> Log(string tag, string msg)
         {
             var log = $"{DateTime.Now.ToString("T")} {tag,-10} {msg}";
