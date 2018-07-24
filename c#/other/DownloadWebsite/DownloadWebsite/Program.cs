@@ -29,6 +29,11 @@ namespace DownloadWebsite
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new Form1());
 
+            Application.ApplicationExit += (sender, e) =>
+            {
+                XLocalSave.singleton.SaveConfig();
+            };
+
             //FreeConsole();
         }
     }

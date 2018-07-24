@@ -24,9 +24,41 @@ namespace DownloadWebsite
         {
             XLocalSave.singleton.SetString(key, val);
         }
+
+        public static bool GetBool(string key, bool def = false)
+        {
+            var def_str = def.ToString();
+            var str = XLocalSave.singleton.GetString(key, def_str);
+            if(bool.TryParse(str, out def) == false)
+            {
+                def = false;
+            }
+            return def;
+        }
+
+        public static void SetBool(string key, bool val)
+        {
+            XLocalSave.singleton.SetString(key, val.ToString());
+        }
+
+        public static int GetInt(string key, int def = 0)
+        {
+            var def_str = def.ToString();
+            var str = XLocalSave.singleton.GetString(key, def_str);
+            if (int.TryParse(str, out def) == false)
+            {
+                def = 0;
+            }
+            return def;
+        }
+
+        public static void SetInt(string key, int val)
+        {
+            XLocalSave.singleton.SetString(key, val.ToString());
+        }
     }
 
-    class XLocalSave
+    public class XLocalSave
     {
         public static XLocalSave singleton = new XLocalSave();
 
@@ -56,10 +88,9 @@ namespace DownloadWebsite
         public void SetString(string key, string val)
         {
             m_dic[key] = val;
-            SaveConfig();
         }
 
-        void LoadConfig()
+        public void LoadConfig()
         {
             m_dic.Clear();
             if (File.Exists(m_config_file))
@@ -77,7 +108,7 @@ namespace DownloadWebsite
             }
         }
 
-        void SaveConfig()
+        public void SaveConfig()
         {
             List<string> list = new List<string>();
             list.Add("Key\tValue");

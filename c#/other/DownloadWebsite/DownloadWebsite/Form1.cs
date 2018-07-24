@@ -26,6 +26,8 @@ namespace DownloadWebsite
             this.button_auto_scroll_log.Text = m_auto_scroll_log ? "停止滚动" : "自动滚动";
 
             RefreshStatusAndLogAndUI();
+
+            FillUI();
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -77,7 +79,7 @@ namespace DownloadWebsite
             {
                 this.label_status.Text = Worker.singleton.m_status;
                 bool is_working = Worker.singleton.m_thread_cnt > 0;
-                this.textBox_web_root.ReadOnly = is_working;
+                RefreshUIByWorkingStatus(is_working);
             }));
         }
 
@@ -88,6 +90,17 @@ namespace DownloadWebsite
             RefreshUI();
         }
 
+        public void RefreshUIByWorkingStatus(bool is_working)
+        {
+            this.textBox_web_root.ReadOnly = is_working;
+            this.textBox_proxy_host.ReadOnly = is_working;
+            this.textBox_proxy_port.ReadOnly = is_working;
+            this.textBox_proxy_user.ReadOnly = is_working;
+            this.textBox_proxy_pwd.ReadOnly = is_working;
+            //this.checkBox_use_proxy.Enabled = !is_working;
+            //this.checkBox_force_down.Enabled = !is_working;
+        }
+
         void ClearLog()
         {
             this.richTextBox_log.Clear();
@@ -96,10 +109,15 @@ namespace DownloadWebsite
         static readonly string s_key_save_dir = "last.save.dir";
         static readonly string s_key_website = "last.website";
         static readonly string s_key_cpu_num = "last.cpu.num";
+        static readonly string s_key_proxy_use = "last.proxy.use";
+        static readonly string s_key_proxy_host = "last.proxy.host";
+        static readonly string s_key_proxy_port = "last.proxy.port";
+        static readonly string s_key_proxy_user = "last.proxy.user";
+        static readonly string s_key_proxy_pwd = "last.proxy.pwd";
         void RefreshUI()
         {
             bool is_working = Worker.singleton.IsWorking();
-            this.textBox_web_root.ReadOnly = is_working;
+            RefreshUIByWorkingStatus(is_working);
             var def_save_dir = Path.Combine(Environment.CurrentDirectory, "website");
             var def_website = "";
 
@@ -107,6 +125,18 @@ namespace DownloadWebsite
             this.textBox_web_root.Text = XConfig.GetString(s_key_website, def_website);
             this.comboBox_thread_cnt.Text = XConfig.GetString(s_key_cpu_num, "4");
         }
+
+        void FillUI()
+        {
+            // Proxy
+            this.checkBox_use_proxy.Checked = XConfig.GetBool(s_key_proxy_use, false);
+            this.textBox_proxy_host.Text = XConfig.GetString(s_key_proxy_host);
+            this.textBox_proxy_port.Text = XConfig.GetInt(s_key_proxy_port).ToString();
+            this.textBox_proxy_user.Text = XConfig.GetString(s_key_proxy_user);
+            this.textBox_proxy_pwd.Text = XConfig.GetString(s_key_proxy_pwd);
+        }
+
+
 
         private void button2_Click(object sender, EventArgs e)
         {
@@ -134,8 +164,23 @@ namespace DownloadWebsite
             XConfig.SetString(s_key_website, web_root);
 
             this.ClearLog();
+
+            var proxy_use = XConfig.GetBool(s_key_proxy_use,false);
+            var proxy_host = XConfig.GetString(s_key_proxy_host);
+            var proxy_port = XConfig.GetInt(s_key_proxy_port);
+            var proxy_user = XConfig.GetString(s_key_proxy_user);
+            var proxy_pwd = XConfig.GetString(s_key_proxy_pwd);
+
+            if(string.IsNullOrEmpty(proxy_host) || proxy_port <= 0)
+            {
+                proxy_use = false;
+                XConfig.SetBool(s_key_proxy_use, proxy_use);
+            }
+
+            Worker.singleton.SetProxyInfo(proxy_use, proxy_host, proxy_port, proxy_user, proxy_pwd);
             Worker.singleton.StartDownload(web_root,save_dir,this.checkBox_force_down.Checked, cnt);
             RefreshUI();
+            FillUI();
         }
 
         private void button3_Click(object sender, EventArgs e)
@@ -186,6 +231,39 @@ namespace DownloadWebsite
         private void textBox_web_root_TextChanged(object sender, EventArgs e)
         {
             XConfig.SetString(s_key_website, this.textBox_web_root.Text);
+        }
+
+        private void checkBox_use_proxy_CheckedChanged(object sender, EventArgs e)
+        {
+            XConfig.SetBool(s_key_proxy_use, this.checkBox_use_proxy.Checked);
+        }
+
+        private void textBox_proxy_host_TextChanged(object sender, EventArgs e)
+        {
+            XConfig.SetString(s_key_proxy_host, this.textBox_proxy_host.Text);
+        }
+
+        private void textBox_proxy_port_TextChanged(object sender, EventArgs e)
+        {
+            string port_str = this.textBox_proxy_port.Text;
+            int port;
+            if (int.TryParse(port_str, out port) == false) port = 80;
+            XConfig.SetInt(s_key_proxy_port, port);
+        }
+
+        private void textBox_proxy_user_TextChanged(object sender, EventArgs e)
+        {
+            XConfig.SetString(s_key_proxy_user, this.textBox_proxy_user.Text);
+        }
+
+        private void textBox_proxy_pwd_TextChanged(object sender, EventArgs e)
+        {
+            XConfig.SetString(s_key_proxy_pwd, this.textBox_proxy_pwd.Text);
+        }
+
+        private void Form1_FormClosed(object sender, FormClosedEventArgs e)
+        {
+            XLocalSave.singleton.SaveConfig();
         }
     }
 }

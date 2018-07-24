@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
 using System.Text.RegularExpressions;
+using System.Net;
 
 namespace DownloadWebsite
 {
@@ -17,7 +18,9 @@ namespace DownloadWebsite
         public event Action<string> m_add_log;
         public event Action m_refresh_status;
 
-        public string m_web_root = "";
+        public string m_web_root_url_dir = "";
+        public string m_web_host = "";
+        public string m_web_root_file_dir = "";
         public string m_save_dir = "";
         public LinkedList<string> m_log_list = new LinkedList<string>();
         public HashSet<string> m_urls_set = new HashSet<string>();
@@ -73,50 +76,42 @@ namespace DownloadWebsite
         //    }
         //    RefreshLog();
         //}
-
-        public void StartDownload(string web_root, string save_dir, bool force_download, int thread_limit)
+        bool m_proxy_use = false;
+        string m_proxy_host;
+        int m_proxy_port;
+        string m_proxy_user;
+        string m_proxy_pwd;
+        public void SetProxyInfo(bool use, string host = null, int port = 0, string user = null, string pwd = null)
         {
-            AbortDownload();
+            m_proxy_use = use;
+            m_proxy_host = host;
+            m_proxy_port = port;
+            m_proxy_user = user;
+            m_proxy_pwd = pwd;
+            if (string.IsNullOrEmpty(m_proxy_host) || port <= 0) m_proxy_use = false;
+        }
+
+        public void StartDownload(string start_url, string save_dir, bool force_download, int thread_limit)
+        {
+            AbortDownload(quite: false);
             m_error_url_cnt = 0;
             m_thread_limit = thread_limit;
             m_save_dir = save_dir;
             m_log_list.Clear();
             m_force_download = force_download;
 
-            web_root = GetAbsoluteUrlPath(web_root);
-            string start_url = web_root;
-            // 处理下web root, 支持有限制，每个url必须是文本，而不是目录。结尾需要是 *.*
-            if (web_root.EndsWith("/"))
+            //web_root = GetAbsoluteUrlPath(web_root);
+            try
             {
-                start_url += "index.html";
-                m_web_root = web_root;
+                start_url = XHttp.GetUrlPathFromUrl(start_url);
+                m_web_host = XHttp.GetWebHostFromUrl(start_url);
+                m_web_root_file_dir = XHttp.GetFileDirFromUrl(start_url);
+                m_web_root_url_dir = XHttp.GetUrlDirFromUrl(start_url);
             }
-            else
+            catch(Exception)
             {
-                int idx = web_root.LastIndexOf('/');
-                if (idx < 0)
-                {
-                    Log("error", "url is error");
-                    return;
-                }
-                var name = web_root.Substring(idx + 1);
-                m_web_root = web_root.Substring(0, idx + 1);
-                if (name.LastIndexOf('.') < 1)
-                {
-                    if (name == "index")
-                    {
-                        
-                        start_url += ".html";
-                    }
-                    else
-                    {
-                        start_url += "/index.html";
-                    }
-                }
-                else
-                {
-                    start_url = web_root;
-                }
+                Log("error", $"url format error {start_url}, do not forget to add 'http://' header");
+                return;
             }
 
             m_url_list.Clear();
@@ -131,7 +126,7 @@ namespace DownloadWebsite
         }
 
         bool m_stoped = true;
-        public void AbortDownload()
+        public void AbortDownload(bool quite = true)
         {
             bool valid = false;
             lock (this)
@@ -234,6 +229,20 @@ namespace DownloadWebsite
         void ThreadDownload()
         {
             lock (this) { m_thread_cnt++; }
+
+            WebProxy proxy = null;
+            if (m_proxy_use)
+            {
+                try
+                {
+                    proxy = XWebClient.CreateWebProxy(m_proxy_host, m_proxy_port, m_proxy_user, m_proxy_pwd);
+                }
+                catch(Exception e)
+                {
+                    Log("error", $"创建代理失败： {e.Message}");
+                }
+                
+            }
             
             while (true)
             {
@@ -244,11 +253,11 @@ namespace DownloadWebsite
                 {
                     //var url_path = GetAbsoluteUrlPath(url);
                     string status_str = "[?]";
-                    var save_file = Path.Combine(m_save_dir, GetUrlPath(url).Replace(m_web_root, ""));
+                    var save_file = GetSaveFileNameFromUrl(url);
                     bool need_down = m_force_download || File.Exists(save_file) == false;
                     if (need_down)
                     {
-                        var result = XHttp.GetData(url);
+                        var result = XHttp.GetData(url, proxy);
                         if(result.error != null)
                         {
                             status_str = $"【Error:{result.error}";
@@ -276,7 +285,7 @@ namespace DownloadWebsite
                     }
                     else
                     {
-                        if (save_file.EndsWith(".html") == true)
+                        if (save_file.EndsWith(".html") == true || save_file.EndsWith(".htm") == true)
                         {
                             HandleLocalHtml(save_file, url);
                         }
@@ -300,17 +309,22 @@ namespace DownloadWebsite
         }
 
         Regex m_reg_css_url = new Regex(@"\s+url\((\S*)\)");
+        Regex m_reg_data_url = new Regex(@"^\w{1,20}:");
         void HandleCss(string content, string url)
         {
-            var url_dir = GetUrlDir(url);
+            var url_dir = XHttp.GetUrlDirFromUrl(url);
             var matches = m_reg_css_url.Matches(content);
             foreach(Match match in matches)
             {
                 var href = match.Groups[1].Value;
                 href = href.Trim().Trim('"', '\'');
-                if(string.IsNullOrEmpty(href) || href.StartsWith("/") || href.Contains("//"))
+                if(string.IsNullOrEmpty(href) || href.Contains("//") || m_reg_data_url.IsMatch(href))
                 {
 
+                }
+                else if (href.StartsWith("/"))
+                {
+                    AddUrl(m_web_host + href);
                 }
                 else
                 {
@@ -345,7 +359,7 @@ namespace DownloadWebsite
 
         void HandleLocalHtml(HtmlDocument doc, string url)
         {
-            var url_dir = GetUrlDir(url);
+            var url_dir = XHttp.GetUrlDirFromUrl(url);
 
             HandleHtmlHrefs(doc, url_dir, "//link[@type='text/css']", "href");
             HandleHtmlHrefs(doc, url_dir, "//script[@type='text/javascript']", "src");
@@ -353,9 +367,15 @@ namespace DownloadWebsite
             HandleHtmlHrefs(doc, url_dir, "//img", "src");
 
             // save html
-            var save_file = Path.Combine(m_save_dir, GetUrlPath(url).Replace(m_web_root, ""));
+            var save_file = GetSaveFileNameFromUrl(url);
             Directory.CreateDirectory(Path.GetDirectoryName(save_file));
             doc.Save(save_file);
+        }
+
+        string GetSaveFileNameFromUrl(string url)
+        {
+            var file = Path.Combine(m_save_dir, XHttp.GetFilePathFromUrl(url).Replace(m_web_root_file_dir, ""));
+            return file;
         }
 
 
@@ -401,10 +421,7 @@ namespace DownloadWebsite
         }
         void AddUrl(string url)
         {
-            if (url == m_web_root) return;
-            var name = GetUrlFileName(url);
-            if (name.IndexOf('.') < 0) return;
-            var url_path = GetAbsoluteUrlPath(url);
+            var url_path = XHttp.GetFilePathFromUrl(url);
 
             bool changed = false;
             lock (this)
@@ -421,6 +438,11 @@ namespace DownloadWebsite
 
         void FormatHref(string href, string c_url_dir, out string _url, out string _href)
         {
+            if (href.StartsWith("/"))
+            {
+                href = m_web_host + href;
+            }
+
             if (href.Contains("//"))
             {
                 _url = href;
@@ -429,10 +451,10 @@ namespace DownloadWebsite
                 {
                     _href = href.Substring(c_url_dir.Length);
                 }
-                else if (href.StartsWith(m_web_root))
+                else if (href.StartsWith(m_web_root_url_dir))
                 {
-                    var t1 = href.Substring(m_web_root.Length);
-                    var t2 = c_url_dir.Substring(m_web_root.Length);
+                    var t1 = href.Substring(m_web_root_url_dir.Length);
+                    var t2 = c_url_dir.Substring(m_web_root_url_dir.Length);
                     while (t2.LastIndexOf('/') >= 0)// 应该只要 > 就行
                     {
                         t1 = "../" + t1;
@@ -456,7 +478,7 @@ namespace DownloadWebsite
                 _href = href;
                 Regex reg = new Regex(@"^\w{1,10}:");
                 // 已经是相对地址了，
-                if (string.IsNullOrWhiteSpace(href) || href.StartsWith("#") || href.StartsWith("/") || reg.IsMatch(href))
+                if (string.IsNullOrWhiteSpace(href) || href.StartsWith("#") || reg.IsMatch(href))
                 {
                     _url = null;
                 }
@@ -467,45 +489,11 @@ namespace DownloadWebsite
             }
         }
 
-        static string GetUrlDir(string url)
-        {
-            url = GetUrlPath(url);
-            int idx = url.LastIndexOf('/');
-            if (idx >= 0)
-            {
-                return url.Substring(0, idx+1);
-            }
-            else
-            {
-                return null;
-            }
-        }
-
-        static string GetUrlFileName(string url)
-        {
-            url = GetUrlPath(url);
-            int idx = url.LastIndexOf('/');
-            if(idx >= 0)
-            {
-                return url.Substring(idx + 1);
-            }
-            else
-            {
-                return null;
-            }
-        }
-
         static string GetUrlPath(string url)
         {
             if (url.IndexOf('#') > 0) url = url.Substring(0, url.IndexOf('#'));
             if (url.IndexOf('?') > 0) url = url.Substring(0, url.IndexOf('?'));
             return url;
-        }
-
-        static string GetAbsoluteUrlPath(string url)
-        {
-            Uri info = new Uri(url);
-            return GetUrlPath(info.AbsoluteUri);
         }
 
         #endregion Html
