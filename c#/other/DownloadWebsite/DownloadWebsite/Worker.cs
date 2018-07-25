@@ -324,7 +324,7 @@ namespace DownloadWebsite
                 }
                 else if (href.StartsWith("/"))
                 {
-                    AddUrl(m_web_host + href);
+                    //AddUrl(m_web_host + href);// 这种需要修改了才能使用
                 }
                 else
                 {
@@ -472,6 +472,22 @@ namespace DownloadWebsite
                 {
                     _url = null;
                 }
+
+                if(_url != null)
+                {
+                    if (_href.EndsWith("/"))
+                    {
+                        _href += "index.html";
+                    }
+                    else
+                    {
+                        var name = _href;
+                        int idx = _href.LastIndexOf('/');
+                        if (idx >= 0) name = _href.Substring(idx + 1);
+                        if (name.IndexOf('.') < 0) _href += "/index.html";
+                    }
+                    _url = c_url_dir + _href;
+                }
             }
             else
             {
@@ -484,7 +500,18 @@ namespace DownloadWebsite
                 }
                 else
                 {
-                    _url = c_url_dir + href;
+                    if(_href.EndsWith("/"))
+                    {
+                        _href += "index.html";
+                    }
+                    else
+                    {
+                        var name = _href;
+                        int idx = _href.LastIndexOf('/');
+                        if (idx >= 0) name = _href.Substring(idx + 1);
+                        if (name.IndexOf('.') < 0) _href += "/index.html";
+                    }
+                    _url = c_url_dir + _href;
                 }
             }
         }
