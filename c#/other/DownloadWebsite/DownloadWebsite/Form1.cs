@@ -37,8 +37,19 @@ namespace DownloadWebsite
                 MessageBox.Show("正在下载，先取消下载");
                 return;
             }
-
+            // > https://stackoverflow.com/questions/844423/set-folder-browser-dialog-start-location
             FolderBrowserDialog dialog = new FolderBrowserDialog();
+            var dir = XConfig.GetString(s_key_save_dir);
+            if(Directory.Exists(dir) == false)
+            {
+                try
+                {
+                    dir = Path.GetDirectoryName(dir);
+                }
+                catch (Exception) { }
+            }
+            dialog.RootFolder = Environment.SpecialFolder.MyComputer;
+            dialog.SelectedPath = dir;
             dialog.ShowNewFolderButton = true;
             dialog.Description = "选择下载的根目录";
 

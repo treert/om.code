@@ -329,8 +329,9 @@ namespace DownloadWebsite
 
             Func<string, string> get_full_url = (url) =>
             {
-                if (url.StartsWith("/")) return xurl_root.m_url_host + url;
-                if (XUrl.IsSchemeUrl(url)) return url;
+                if (url.StartsWith("//")) return xurl_root.m_uri.Scheme + ':' + url;
+                else if (url.StartsWith("/")) return xurl_root.m_url_host + url;
+                else if (XUrl.IsSchemeUrl(url)) return url;
                 else
                 {
                     if (from_file)
@@ -422,8 +423,9 @@ namespace DownloadWebsite
 
             Func<string, string> get_full_url = (url) =>
             {
-                if (url.StartsWith("/")) return xurl_root.m_url_host + url;
-                if (XUrl.IsSchemeUrl(url)) return url;
+                if (url.StartsWith("//")) return xurl_root.m_uri.Scheme + ':' + url;
+                else if (url.StartsWith("/")) return xurl_root.m_url_host + url;
+                else if (XUrl.IsSchemeUrl(url)) return url;
                 else
                 {
                     if (from_file)
