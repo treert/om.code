@@ -42,8 +42,8 @@
             this.linkLabel_save_dir = new System.Windows.Forms.LinkLabel();
             this.label_status = new System.Windows.Forms.Label();
             this.button_auto_scroll_log = new System.Windows.Forms.Button();
-            this.checkBox_use_proxy = new System.Windows.Forms.CheckBox();
             this.tableLayoutPanel3 = new System.Windows.Forms.TableLayoutPanel();
+            this.checkBox_use_proxy = new System.Windows.Forms.CheckBox();
             this.label2 = new System.Windows.Forms.Label();
             this.label4 = new System.Windows.Forms.Label();
             this.label5 = new System.Windows.Forms.Label();
@@ -52,6 +52,7 @@
             this.textBox_proxy_user = new System.Windows.Forms.TextBox();
             this.textBox_proxy_port = new System.Windows.Forms.TextBox();
             this.textBox_proxy_host = new System.Windows.Forms.TextBox();
+            this.checkBox_careful_mode_open = new System.Windows.Forms.CheckBox();
             this.tableLayoutPanel1.SuspendLayout();
             this.tableLayoutPanel2.SuspendLayout();
             this.tableLayoutPanel3.SuspendLayout();
@@ -116,8 +117,8 @@
             this.tableLayoutPanel1.Controls.Add(this.tableLayoutPanel2, 1, 1);
             this.tableLayoutPanel1.Controls.Add(this.label_status, 1, 4);
             this.tableLayoutPanel1.Controls.Add(this.button_auto_scroll_log, 0, 4);
-            this.tableLayoutPanel1.Controls.Add(this.checkBox_use_proxy, 0, 2);
             this.tableLayoutPanel1.Controls.Add(this.tableLayoutPanel3, 1, 2);
+            this.tableLayoutPanel1.Controls.Add(this.checkBox_careful_mode_open, 0, 2);
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanel1.Location = new System.Drawing.Point(0, 0);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
@@ -127,6 +128,7 @@
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 30F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
             this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 30F));
+            this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
             this.tableLayoutPanel1.Size = new System.Drawing.Size(798, 430);
             this.tableLayoutPanel1.TabIndex = 5;
             // 
@@ -186,6 +188,7 @@
             this.checkBox_force_down.Text = "强制下载";
             this.checkBox_force_down.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             this.checkBox_force_down.UseVisualStyleBackColor = true;
+            this.checkBox_force_down.CheckedChanged += new System.EventHandler(this.checkBox_force_down_CheckedChanged);
             // 
             // label3
             // 
@@ -261,38 +264,27 @@
             this.button_auto_scroll_log.UseVisualStyleBackColor = true;
             this.button_auto_scroll_log.Click += new System.EventHandler(this.button_auto_scroll_log_Click);
             // 
-            // checkBox_use_proxy
-            // 
-            this.checkBox_use_proxy.AutoSize = true;
-            this.checkBox_use_proxy.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.checkBox_use_proxy.Location = new System.Drawing.Point(3, 73);
-            this.checkBox_use_proxy.Name = "checkBox_use_proxy";
-            this.checkBox_use_proxy.Size = new System.Drawing.Size(74, 24);
-            this.checkBox_use_proxy.TabIndex = 9;
-            this.checkBox_use_proxy.Text = "使用代理";
-            this.checkBox_use_proxy.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            this.checkBox_use_proxy.UseVisualStyleBackColor = true;
-            this.checkBox_use_proxy.CheckedChanged += new System.EventHandler(this.checkBox_use_proxy_CheckedChanged);
-            // 
             // tableLayoutPanel3
             // 
-            this.tableLayoutPanel3.ColumnCount = 8;
-            this.tableLayoutPanel3.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 60F));
+            this.tableLayoutPanel3.ColumnCount = 9;
+            this.tableLayoutPanel3.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 80F));
+            this.tableLayoutPanel3.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 50F));
             this.tableLayoutPanel3.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 55.55556F));
-            this.tableLayoutPanel3.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 60F));
+            this.tableLayoutPanel3.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 50F));
             this.tableLayoutPanel3.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 50F));
             this.tableLayoutPanel3.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 60F));
             this.tableLayoutPanel3.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 22.22222F));
-            this.tableLayoutPanel3.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 60F));
+            this.tableLayoutPanel3.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 50F));
             this.tableLayoutPanel3.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 22.22222F));
-            this.tableLayoutPanel3.Controls.Add(this.label2, 0, 0);
-            this.tableLayoutPanel3.Controls.Add(this.label4, 2, 0);
-            this.tableLayoutPanel3.Controls.Add(this.label5, 4, 0);
-            this.tableLayoutPanel3.Controls.Add(this.label6, 6, 0);
-            this.tableLayoutPanel3.Controls.Add(this.textBox_proxy_pwd, 7, 0);
-            this.tableLayoutPanel3.Controls.Add(this.textBox_proxy_user, 5, 0);
-            this.tableLayoutPanel3.Controls.Add(this.textBox_proxy_port, 3, 0);
-            this.tableLayoutPanel3.Controls.Add(this.textBox_proxy_host, 1, 0);
+            this.tableLayoutPanel3.Controls.Add(this.checkBox_use_proxy, 0, 0);
+            this.tableLayoutPanel3.Controls.Add(this.label2, 1, 0);
+            this.tableLayoutPanel3.Controls.Add(this.label4, 3, 0);
+            this.tableLayoutPanel3.Controls.Add(this.label5, 5, 0);
+            this.tableLayoutPanel3.Controls.Add(this.label6, 7, 0);
+            this.tableLayoutPanel3.Controls.Add(this.textBox_proxy_pwd, 8, 0);
+            this.tableLayoutPanel3.Controls.Add(this.textBox_proxy_user, 6, 0);
+            this.tableLayoutPanel3.Controls.Add(this.textBox_proxy_port, 4, 0);
+            this.tableLayoutPanel3.Controls.Add(this.textBox_proxy_host, 2, 0);
             this.tableLayoutPanel3.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanel3.Location = new System.Drawing.Point(83, 73);
             this.tableLayoutPanel3.Name = "tableLayoutPanel3";
@@ -301,13 +293,26 @@
             this.tableLayoutPanel3.Size = new System.Drawing.Size(712, 24);
             this.tableLayoutPanel3.TabIndex = 10;
             // 
+            // checkBox_use_proxy
+            // 
+            this.checkBox_use_proxy.AutoSize = true;
+            this.checkBox_use_proxy.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.checkBox_use_proxy.Location = new System.Drawing.Point(3, 3);
+            this.checkBox_use_proxy.Name = "checkBox_use_proxy";
+            this.checkBox_use_proxy.Size = new System.Drawing.Size(74, 18);
+            this.checkBox_use_proxy.TabIndex = 10;
+            this.checkBox_use_proxy.Text = "使用代理";
+            this.checkBox_use_proxy.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            this.checkBox_use_proxy.UseVisualStyleBackColor = true;
+            this.checkBox_use_proxy.CheckedChanged += new System.EventHandler(this.checkBox_use_proxy_CheckedChanged);
+            // 
             // label2
             // 
             this.label2.AutoSize = true;
             this.label2.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.label2.Location = new System.Drawing.Point(3, 0);
+            this.label2.Location = new System.Drawing.Point(83, 0);
             this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(54, 24);
+            this.label2.Size = new System.Drawing.Size(44, 24);
             this.label2.TabIndex = 0;
             this.label2.Text = "地址:";
             this.label2.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
@@ -316,9 +321,9 @@
             // 
             this.label4.AutoSize = true;
             this.label4.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.label4.Location = new System.Drawing.Point(297, 0);
+            this.label4.Location = new System.Drawing.Point(339, 0);
             this.label4.Name = "label4";
-            this.label4.Size = new System.Drawing.Size(54, 24);
+            this.label4.Size = new System.Drawing.Size(44, 24);
             this.label4.TabIndex = 1;
             this.label4.Text = "端口:";
             this.label4.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
@@ -327,7 +332,7 @@
             // 
             this.label5.AutoSize = true;
             this.label5.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.label5.Location = new System.Drawing.Point(407, 0);
+            this.label5.Location = new System.Drawing.Point(439, 0);
             this.label5.Name = "label5";
             this.label5.Size = new System.Drawing.Size(54, 24);
             this.label5.TabIndex = 2;
@@ -338,9 +343,9 @@
             // 
             this.label6.AutoSize = true;
             this.label6.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.label6.Location = new System.Drawing.Point(560, 0);
+            this.label6.Location = new System.Drawing.Point(581, 0);
             this.label6.Name = "label6";
-            this.label6.Size = new System.Drawing.Size(54, 24);
+            this.label6.Size = new System.Drawing.Size(44, 24);
             this.label6.TabIndex = 3;
             this.label6.Text = "密码:";
             this.label6.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
@@ -348,27 +353,27 @@
             // textBox_proxy_pwd
             // 
             this.textBox_proxy_pwd.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.textBox_proxy_pwd.Location = new System.Drawing.Point(620, 3);
+            this.textBox_proxy_pwd.Location = new System.Drawing.Point(631, 3);
             this.textBox_proxy_pwd.MaxLength = 64;
             this.textBox_proxy_pwd.Name = "textBox_proxy_pwd";
-            this.textBox_proxy_pwd.Size = new System.Drawing.Size(89, 21);
+            this.textBox_proxy_pwd.Size = new System.Drawing.Size(78, 21);
             this.textBox_proxy_pwd.TabIndex = 4;
             this.textBox_proxy_pwd.TextChanged += new System.EventHandler(this.textBox_proxy_pwd_TextChanged);
             // 
             // textBox_proxy_user
             // 
             this.textBox_proxy_user.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.textBox_proxy_user.Location = new System.Drawing.Point(467, 3);
+            this.textBox_proxy_user.Location = new System.Drawing.Point(499, 3);
             this.textBox_proxy_user.MaxLength = 64;
             this.textBox_proxy_user.Name = "textBox_proxy_user";
-            this.textBox_proxy_user.Size = new System.Drawing.Size(87, 21);
+            this.textBox_proxy_user.Size = new System.Drawing.Size(76, 21);
             this.textBox_proxy_user.TabIndex = 5;
             this.textBox_proxy_user.TextChanged += new System.EventHandler(this.textBox_proxy_user_TextChanged);
             // 
             // textBox_proxy_port
             // 
             this.textBox_proxy_port.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.textBox_proxy_port.Location = new System.Drawing.Point(357, 3);
+            this.textBox_proxy_port.Location = new System.Drawing.Point(389, 3);
             this.textBox_proxy_port.MaxLength = 5;
             this.textBox_proxy_port.Name = "textBox_proxy_port";
             this.textBox_proxy_port.Size = new System.Drawing.Size(44, 21);
@@ -378,12 +383,24 @@
             // textBox_proxy_host
             // 
             this.textBox_proxy_host.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.textBox_proxy_host.Location = new System.Drawing.Point(63, 3);
+            this.textBox_proxy_host.Location = new System.Drawing.Point(133, 3);
             this.textBox_proxy_host.MaxLength = 256;
             this.textBox_proxy_host.Name = "textBox_proxy_host";
-            this.textBox_proxy_host.Size = new System.Drawing.Size(228, 21);
+            this.textBox_proxy_host.Size = new System.Drawing.Size(200, 21);
             this.textBox_proxy_host.TabIndex = 7;
             this.textBox_proxy_host.TextChanged += new System.EventHandler(this.textBox_proxy_host_TextChanged);
+            // 
+            // checkBox_careful_mode_open
+            // 
+            this.checkBox_careful_mode_open.AutoSize = true;
+            this.checkBox_careful_mode_open.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.checkBox_careful_mode_open.Location = new System.Drawing.Point(3, 73);
+            this.checkBox_careful_mode_open.Name = "checkBox_careful_mode_open";
+            this.checkBox_careful_mode_open.Size = new System.Drawing.Size(74, 24);
+            this.checkBox_careful_mode_open.TabIndex = 11;
+            this.checkBox_careful_mode_open.Text = "保守模式";
+            this.checkBox_careful_mode_open.UseVisualStyleBackColor = true;
+            this.checkBox_careful_mode_open.CheckedChanged += new System.EventHandler(this.checkBox1_CheckedChanged);
             // 
             // Form1
             // 
@@ -392,7 +409,7 @@
             this.ClientSize = new System.Drawing.Size(798, 430);
             this.Controls.Add(this.tableLayoutPanel1);
             this.Name = "Form1";
-            this.Text = "下载网站";
+            this.Text = "下载静态资料网站";
             this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.Form1_FormClosed);
             this.tableLayoutPanel1.ResumeLayout(false);
             this.tableLayoutPanel1.PerformLayout();
@@ -420,7 +437,6 @@
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.ComboBox comboBox_thread_cnt;
         private System.Windows.Forms.LinkLabel linkLabel_save_dir;
-        private System.Windows.Forms.CheckBox checkBox_use_proxy;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel3;
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.Label label4;
@@ -430,6 +446,8 @@
         private System.Windows.Forms.TextBox textBox_proxy_user;
         private System.Windows.Forms.TextBox textBox_proxy_port;
         private System.Windows.Forms.TextBox textBox_proxy_host;
+        private System.Windows.Forms.CheckBox checkBox_use_proxy;
+        private System.Windows.Forms.CheckBox checkBox_careful_mode_open;
     }
 }
 

@@ -22,3 +22,22 @@ Winform的UI事件响应时也有一个锁，`Control.Invoke`时就要获取这�
 1. richTextBox处理log时，每次都用list.ToArray()，当日志有1万多行是，基本算卡死了。
 2. 调整log方式后，发现richTextBox只提供了AppendText函数，于是自己来滚动，发现会很卡顿。这个组件不行啊。
 3. 默认不自动滚动日志，还是有明显卡顿。CPU占用率也不是很高，不知为什么。调整默认线程数为4，好像好了一些，能接受，懒得对比了，。
+
+## 超时
+c# webclient之类的单个host有连接数限制，默认就两个。多线程需要设置下。
+`ServicePointManager.DefaultConnectionLimit = Math.Max(thread_limit + 3, ServicePointManager.DefaultConnectionLimit);`。
+
+## 发现
+搜索发现了一篇问答，讨论如何把 Html Site 变成 ebook的。
+> https://ebooks.stackexchange.com/questions/2/how-can-i-convert-an-html-site-into-an-ebook
+
+### 下载
+里面提到个[Httrack](http://www.httrack.com/page/2/en/index.html),可以下载整个网站（不知能不能只下载特定目录）。
+
+### 转电子书
+chm是比较倾向的格式，但是没找到好的方法用winform创建。倒是找到些工具，就是都有不满意的地方。Hugechm不能设置index索引，比较遗憾。
+epub说是比较好的文档，也暂时没发现文章讲这么编程创建。
+
+下载的cplusplus在文件里运行的好好的，但是hugechm编译成chm后，目录UI显示错误。应该是脚本出错了，蛋疼。
+chm是微软私有，依赖IE，但又被微软抛弃了。就每个替代格式的，比如Google出个依赖Chrome的webdoc。
+

@@ -114,6 +114,8 @@ namespace DownloadWebsite
         static readonly string s_key_proxy_port = "last.proxy.port";
         static readonly string s_key_proxy_user = "last.proxy.user";
         static readonly string s_key_proxy_pwd = "last.proxy.pwd";
+        static readonly string s_key_careful_mode_open = "last.careful.mode.open";
+        static readonly string s_key_force_download = "last.force.download";
         void RefreshUI()
         {
             bool is_working = Worker.singleton.IsWorking();
@@ -134,6 +136,11 @@ namespace DownloadWebsite
             this.textBox_proxy_port.Text = XConfig.GetInt(s_key_proxy_port).ToString();
             this.textBox_proxy_user.Text = XConfig.GetString(s_key_proxy_user);
             this.textBox_proxy_pwd.Text = XConfig.GetString(s_key_proxy_pwd);
+
+            // Mode
+            this.checkBox_careful_mode_open.Checked = XConfig.GetBool(s_key_careful_mode_open, true);
+
+            this.checkBox_force_down.Checked = XConfig.GetBool(s_key_force_download, false);
         }
 
 
@@ -152,7 +159,15 @@ namespace DownloadWebsite
                 MessageBox.Show("保存位置不能为空");
                 return;
             }
-            
+
+            //if (XConfig.GetBool(s_key_careful_mode_open, true))
+            //{
+            //    XUrl.TryParser(web_root);
+            //    var res = XWebClient.GetHttpResponseUri(web_root);
+            //    XUrl.ConvertUrlFragToPath(web_root);
+            //    return;
+            //}
+
             int cnt = 4;
             if(int.TryParse(this.comboBox_thread_cnt.Text, out cnt) == false)
             {
@@ -171,6 +186,8 @@ namespace DownloadWebsite
             var proxy_user = XConfig.GetString(s_key_proxy_user);
             var proxy_pwd = XConfig.GetString(s_key_proxy_pwd);
 
+            var force_download = XConfig.GetBool(s_key_force_download);
+
             if(string.IsNullOrEmpty(proxy_host) || proxy_port <= 0)
             {
                 proxy_use = false;
@@ -178,9 +195,10 @@ namespace DownloadWebsite
             }
 
             Worker.singleton.SetProxyInfo(proxy_use, proxy_host, proxy_port, proxy_user, proxy_pwd);
-            Worker.singleton.StartDownload(web_root,save_dir,this.checkBox_force_down.Checked, cnt);
+            Worker.singleton.StartDownload(web_root,save_dir, force_download, cnt);
             RefreshUI();
             FillUI();
+            XLocalSave.singleton.SaveConfig();
         }
 
         private void button3_Click(object sender, EventArgs e)
@@ -264,6 +282,16 @@ namespace DownloadWebsite
         private void Form1_FormClosed(object sender, FormClosedEventArgs e)
         {
             XLocalSave.singleton.SaveConfig();
+        }
+
+        private void checkBox1_CheckedChanged(object sender, EventArgs e)
+        {
+            XConfig.SetBool(s_key_careful_mode_open, this.checkBox_careful_mode_open.Checked);
+        }
+
+        private void checkBox_force_down_CheckedChanged(object sender, EventArgs e)
+        {
+            XConfig.SetBool(s_key_force_download, this.checkBox_force_down.Checked);
         }
     }
 }

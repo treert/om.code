@@ -19,7 +19,6 @@ namespace DownloadWebsite
         public event Action m_refresh_status;
 
         public string m_web_root_url_dir = "";
-        public string m_web_host = "";
         public string m_web_root_file_dir = "";
         public string m_save_dir = "";
         public LinkedList<string> m_log_list = new LinkedList<string>();
@@ -49,7 +48,7 @@ namespace DownloadWebsite
             {
                 stop_finish = m_thread_cnt == 0 && exit;// 最后一个线程退出时刷新状态。
                 var total_cnt = m_urls_set.Count;
-                var left_cnt = m_url_list.Count;
+                var left_cnt = m_xurl_list.Count;
                 m_status = $" left:{left_cnt,-7} error:{m_error_url_cnt,-7} total:{total_cnt,-7} Thread:{m_thread_cnt,-3}";
             }
             if (m_refresh_status != null) m_refresh_status();
@@ -94,30 +93,31 @@ namespace DownloadWebsite
         public void StartDownload(string start_url, string save_dir, bool force_download, int thread_limit)
         {
             AbortDownload(quite: false);
+
+            // webclient超时问题，连接数不够
+            // > https://www.cnblogs.com/i80386/archive/2013/01/11/2856490.html
+            ServicePointManager.DefaultConnectionLimit = Math.Max(thread_limit + 3, ServicePointManager.DefaultConnectionLimit);
+
             m_error_url_cnt = 0;
             m_thread_limit = thread_limit;
             m_save_dir = save_dir;
             m_log_list.Clear();
             m_force_download = force_download;
 
-            //web_root = GetAbsoluteUrlPath(web_root);
-            try
+            var xurl = XUrl.TryParser(start_url);
+            if(xurl == null || xurl.m_is_html == false)
             {
-                start_url = XHttp.GetUrlPathFromUrl(start_url);
-                m_web_host = XHttp.GetWebHostFromUrl(start_url);
-                m_web_root_file_dir = XHttp.GetFileDirFromUrl(start_url);
-                m_web_root_url_dir = XHttp.GetUrlDirFromUrl(start_url);
-            }
-            catch(Exception)
-            {
-                Log("error", $"url format error {start_url}, do not forget to add 'http://' header");
+                Log("error", $"{start_url} does not support, must start with 'http://' or 'https://' and end with '/' or '.html'");
                 return;
             }
 
-            m_url_list.Clear();
+            m_web_root_file_dir = xurl.m_file_dir;
+            m_web_root_url_dir = xurl.m_url_dir;
+
+            m_xurl_list.Clear();
             m_urls_set.Clear();
 
-            AddUrl(start_url);
+            AddUrl(xurl);
 
             Log("start:", $"download website {start_url}");
             // 开线程下载
@@ -128,16 +128,21 @@ namespace DownloadWebsite
         bool m_stoped = true;
         public void AbortDownload(bool quite = true)
         {
-            bool valid = false;
-            lock (this)
+            if (m_stoped == false)
             {
-                if (m_stoped == false)
-                {
-                    valid = true;
-                    m_stoped = true;
-                }
+                Log("stop", "wait for thread to exit");
+                m_stoped = true;
             }
-            if (valid) { Log("stop", "wait for thread to exit"); }
+            //bool valid = false;
+            //lock (this)
+            //{
+            //    if (m_stoped == false)
+            //    {
+            //        valid = true;
+            //        m_stoped = true;
+            //    }
+            //}
+            //if (valid) { Log("stop", "wait for thread to exit"); }
             
             // 粗暴打断
             //foreach (var thread in m_thread_list)
@@ -149,15 +154,15 @@ namespace DownloadWebsite
 
         public bool IsWorking()
         {
-            //return m_thread_cnt > 0;
-            lock (this)
-            {
-                foreach (var th in m_thread_list)
-                {
-                    if (th.IsAlive) return true;
-                }
-                return false;
-            }
+            return m_thread_cnt > 0;
+            //lock (this)
+            //{
+            //    foreach (var th in m_thread_list)
+            //    {
+            //        if (th.IsAlive) return true;
+            //    }
+            //    return false;
+            //}
         }
 
         #region Html
@@ -181,7 +186,8 @@ namespace DownloadWebsite
             }
         }
 
-        Queue<UrlInfo> m_url_list = new Queue<UrlInfo>();
+        Queue<XUrl> m_xurl_list = new Queue<XUrl>();
+        
         bool m_force_download = false;
         LinkedList<Thread> m_thread_list = new LinkedList<Thread>();
 
@@ -194,7 +200,7 @@ namespace DownloadWebsite
                 {
                     return;
                 }
-                var cnt = m_url_list.Count;
+                var cnt = m_xurl_list.Count;
                 //var limit = Math.Log(cnt, 2) + 4;
                 int limit = m_thread_limit;
                 int cur = 0;
@@ -230,6 +236,7 @@ namespace DownloadWebsite
         {
             lock (this) { m_thread_cnt++; }
 
+            XWebClient client = new XWebClient();
             WebProxy proxy = null;
             if (m_proxy_use)
             {
@@ -241,39 +248,39 @@ namespace DownloadWebsite
                 {
                     Log("error", $"创建代理失败： {e.Message}");
                 }
-                
             }
-            
+
             while (true)
             {
-                var url = GetUrl();
+                var xurl = GetUrl();
                 RefreshStatus();
-                if (url == null) break;
+                if (xurl == null) break;
                 try
                 {
                     //var url_path = GetAbsoluteUrlPath(url);
                     string status_str = "[?]";
-                    var save_file = GetSaveFileNameFromUrl(url);
+                    var save_file = GetSaveFileNameFromUrl(xurl);
                     bool need_down = m_force_download || File.Exists(save_file) == false;
                     if (need_down)
                     {
-                        var result = XHttp.GetData(url, proxy);
+                        var result = client.GetData(xurl.m_url_full);
                         if(result.error != null)
                         {
                             status_str = $"【Error:{result.error}";
                             m_error_url_cnt++;
                         }
-                        else if (result.type == XHttp.ResponceType.Html)
+                        else if (result.type == XWebResult.XContentType.Html)
                         {
                             // 特殊处理，提取url，并且修改url
-                            HandleHtml(result.text, url);
+                            HandleHtml(result.text, xurl);
                             status_str = "OK";
                         }
-                        else if (result.type == XHttp.ResponceType.Css)
+                        else if (result.type == XWebResult.XContentType.Css)
                         {
-                            HandleCss(result.text, url);
+                            // 特殊处理，提取url，并修改url
+                            var content = HandleCss(result.text, xurl);
                             Directory.CreateDirectory(Path.GetDirectoryName(save_file));
-                            File.WriteAllBytes(save_file, result.bytes);
+                            File.WriteAllText(save_file, content);
                             status_str = "OK";
                         }
                         else
@@ -285,101 +292,249 @@ namespace DownloadWebsite
                     }
                     else
                     {
-                        if (save_file.EndsWith(".html") == true || save_file.EndsWith(".htm") == true)
+                        if (save_file.EndsWith(".html") == true)
                         {
-                            HandleLocalHtml(save_file, url);
+                            HandleLocalHtml(save_file, xurl);
                         }
                         else if(save_file.EndsWith(".css") == true)
                         {
-                            HandleCssFile(save_file, url);
+                            HandleLocalCssFile(save_file, xurl);
                         }
                         status_str = "cached";
                     }
-                    Log("down=>", $"{url} {status_str}");
+                    Log("down=>", $"{xurl.m_url_full} {status_str}");
                     TryAddTheadToDownLoad();
                 }
                 catch (Exception e)
                 {
-                    Log("exception", $"{url} {e.Message}");
+                    Log("exception", $"{xurl.m_url_full} msg:{e.Message}");
                     m_error_url_cnt++;
                 }
             }
             lock (this) { m_thread_cnt--; }
+            client.Dispose();
             RefreshStatus(true);
         }
 
-        Regex m_reg_css_url = new Regex(@"\s+url\((\S*)\)");
-        Regex m_reg_data_url = new Regex(@"^\w{1,20}:");
-        void HandleCss(string content, string url)
+        [ThreadStatic]
+        static Regex m_reg_css_url = new Regex(@"\burl\((\S*)\)");
+        string HandleCss(string content, XUrl xurl_root, bool from_file = false)
         {
-            var url_dir = XHttp.GetUrlDirFromUrl(url);
-            var matches = m_reg_css_url.Matches(content);
-            foreach(Match match in matches)
-            {
-                var href = match.Groups[1].Value;
-                href = href.Trim().Trim('"', '\'');
-                if(string.IsNullOrEmpty(href) || href.Contains("//") || m_reg_data_url.IsMatch(href))
-                {
+            if(m_reg_css_url == null) m_reg_css_url = new Regex(@"\burl\((\S*)\)");
 
-                }
-                else if (href.StartsWith("/"))
+            StringBuilder sb = new StringBuilder();
+            var matches = m_reg_css_url.Matches(content);
+            List<Match> list = new List<Match>(matches.Count);
+            list.Sort((a, b)=>{ return a.Groups[0].Index - b.Groups[0].Index; });
+
+            Func<string, string> get_full_url = (url) =>
+            {
+                if (url.StartsWith("/")) return xurl_root.m_url_host + url;
+                if (XUrl.IsSchemeUrl(url)) return url;
+                else
                 {
-                    //AddUrl(m_web_host + href);// 这种需要修改了才能使用
+                    if (from_file)
+                        return xurl_root.m_url_dir + XUrl.ConvertPathToUrlFrag(url);
+                    else
+                        return xurl_root.m_url_dir + url;
+                }
+            };
+
+            Func<XUrl, string> get_relate_url = (xurl) =>
+            {
+                // 能成功转相对url，就是打算下载的，这个做个通用限制
+                // 1. 不能有query
+                if (xurl.m_has_query) return null;
+
+                // 保守处理，不在根目录下都不下载
+                if (xurl.m_url_full.StartsWith(m_web_root_url_dir) == false) return null;
+
+                if (xurl.m_url_full == xurl_root.m_url_full) return "#";
+
+                string href = null;
+                if (xurl.m_file_path.StartsWith(xurl_root.m_file_dir))
+                {
+                    href = xurl.m_file_path.Substring(xurl_root.m_file_dir.Length);
                 }
                 else
                 {
-                    AddUrl(url_dir + href);
+                    var t1 = xurl.m_file_path.Substring(m_web_root_file_dir.Length);
+                    var t2 = xurl_root.m_file_path.Substring(m_web_root_file_dir.Length);
+                    while (t2.LastIndexOf('/') > 0)
+                    {
+                        t1 = "../" + t1;
+                        t2 = t2.Substring(0, t2.LastIndexOf('/'));
+                    }
+                    href = t1;
                 }
+                href += xurl.m_uri.Fragment;
+                return href;
+            };
+
+            Func<string, string> downloader = (url) =>
+            {
+                var full = get_full_url(url);
+                var xurl = XUrl.TryParser(full);
+                if (xurl == null) return full;
+                var relate = get_relate_url(xurl);
+                if (relate == null) return full;
+
+                AddUrl(xurl);
+                return relate;
+            };
+
+
+            int last_idx = 0;
+            foreach(Match match in list)
+            {
+                var cap = match.Groups[1];
+                var href = cap.Value;
+                href = href.Trim().Trim('"', '\'');
+
+                sb.Append(content, last_idx, cap.Index - last_idx);
+                var url = downloader(href);
+                sb.Append($"'{url}'");
+                last_idx = cap.Index + cap.Length;
             }
+            sb.Append(content, last_idx, content.Length - last_idx);
+
+            return sb.ToString();
         }
 
-        void HandleCssFile(string file, string url)
+        string HandleLocalCssFile(string file, XUrl xurl_root)
         {
             var content = File.ReadAllText(file);
-            HandleCss(content, url);
+            return HandleCss(content, xurl_root, true);
         }
 
 
-        // xpath语法 http://www.w3school.com.cn/xpath/xpath_syntax.asp
-        void HandleHtml(string html, string url)
+        void HandleHtml(HtmlDocument doc, XUrl xurl_root, bool from_file = false)
+        {
+            {
+                // base url 不支持
+                var node = doc.DocumentNode.SelectSingleNode("/html/head/base[@href]");
+                if (node != null) return;
+            }
+            // > https://www.w3schools.com/tags/ref_attributes.asp
+            // 1. 优先下载: link[@href],script[@src],img[@src],input[@type='image'][@src],img[@srcset] 
+            // 2. 转化成绝对url: audio[@src],embed[@src],video[@src],source[@src],source[@srcset],track[@src] 
+            // 3. 检查html链接：a[@href],area[@href],iframe[@src]
+
+            Func<string, string> get_full_url = (url) =>
+            {
+                if (url.StartsWith("/")) return xurl_root.m_url_host + url;
+                if (XUrl.IsSchemeUrl(url)) return url;
+                else
+                {
+                    if (from_file)
+                        return xurl_root.m_url_dir + XUrl.ConvertPathToUrlFrag(url);
+                    else
+                        return xurl_root.m_url_dir + url;
+                }
+            };
+
+            Func<XUrl, string> get_relate_url = (xurl) =>
+            {
+                // 能成功转相对url，就是打算下载的，这个做个通用限制
+                // 1. 不能有query
+                if (xurl.m_has_query) return null;
+
+                // 保守处理，不在根目录下都不下载
+                if (xurl.m_url_full.StartsWith(m_web_root_url_dir) == false) return null;
+
+                if (xurl.m_url_full == xurl_root.m_url_full) return "#";
+
+                string href = null;
+                if (xurl.m_file_path.StartsWith(xurl_root.m_file_dir))
+                {
+                    href = xurl.m_file_path.Substring(xurl_root.m_file_dir.Length);
+                }
+                else
+                {
+                    var t1 = xurl.m_file_path.Substring(m_web_root_file_dir.Length);
+                    var t2 = xurl_root.m_file_path.Substring(m_web_root_file_dir.Length);
+                    while (t2.LastIndexOf('/') > 0)
+                    {
+                        t1 = "../" + t1;
+                        t2 = t2.Substring(0, t2.LastIndexOf('/'));
+                    }
+                    href = t1;
+                }
+                href += xurl.m_uri.Fragment;
+                return href;
+            };
+
+            Func<string, string> downloader = (url) =>
+            {
+                var full = get_full_url(url);
+                var xurl = XUrl.TryParser(full);
+                if (xurl == null) return full;
+                var relate = get_relate_url(xurl);
+                if (relate == null) return full;
+
+                AddUrl(xurl);
+                return relate;
+            };
+
+            Func<string, string> handle_html = (url) =>
+            {
+                var full = get_full_url(url);
+                var xurl = XUrl.TryParser(full);
+                if (xurl == null || xurl.m_is_html == false) return full;// 必须是html
+                var relate = get_relate_url(xurl);
+                if (relate == null) return full;
+
+                AddUrl(xurl);
+                return relate;
+            };
+
+            EnumUrls(doc, "//link", "href", downloader);
+            EnumUrls(doc, "//script", "src", downloader);
+            EnumUrls(doc, "//img", "src", downloader);
+            EnumUrls(doc, "//input[@type='image']", "src", downloader);
+            EnumUrls(doc, "//img", "srcset", downloader);
+
+            EnumUrls(doc, "//audio", "src", get_full_url);
+            EnumUrls(doc, "//embed", "src", get_full_url);
+            EnumUrls(doc, "//video", "src", get_full_url);
+            EnumUrls(doc, "//source", "src", get_full_url);
+            EnumUrls(doc, "//source", "srcset", get_full_url);
+            EnumUrls(doc, "//track", "src", get_full_url);
+
+            EnumUrls(doc, "//a", "href", handle_html);
+            EnumUrls(doc, "//area", "href", handle_html);
+            EnumUrls(doc, "//iframe", "src", handle_html);
+        }
+
+
+        void HandleHtml(string html, XUrl xurl)
         {
             var doc = new HtmlDocument();
             doc.LoadHtml(html);
 
-            HandleLocalHtml(doc, url);
-        }
-
-        void HandleLocalHtml(string file, string url)
-        {
-            var doc = new HtmlDocument();
-            doc.Load(file);
-
-            HandleLocalHtml(doc, url);
-        }
-
-        void HandleLocalHtml(HtmlDocument doc, string url)
-        {
-            var url_dir = XHttp.GetUrlDirFromUrl(url);
-
-            HandleHtmlHrefs(doc, url_dir, "//link[@type='text/css']", "href");
-            HandleHtmlHrefs(doc, url_dir, "//script[@type='text/javascript']", "src");
-            HandleHtmlHrefs(doc, url_dir, "//a", "href");
-            HandleHtmlHrefs(doc, url_dir, "//img", "src");
+            HandleHtml(doc, xurl);
 
             // save html
-            var save_file = GetSaveFileNameFromUrl(url);
+            var save_file = GetSaveFileNameFromUrl(xurl);
             Directory.CreateDirectory(Path.GetDirectoryName(save_file));
             doc.Save(save_file);
         }
 
-        string GetSaveFileNameFromUrl(string url)
+        void HandleLocalHtml(string file, XUrl xurl)
         {
-            var file = Path.Combine(m_save_dir, XHttp.GetFilePathFromUrl(url).Replace(m_web_root_file_dir, ""));
+            var doc = new HtmlDocument();
+            doc.Load(file);
+
+            HandleHtml(doc, xurl, true);
+        }
+
+        string GetSaveFileNameFromUrl(XUrl xurl)
+        {
+            var file = Path.Combine(m_save_dir, xurl.m_file_path.Substring(m_web_root_file_dir.Length));
             return file;
         }
 
-
-        void HandleHtmlHrefs(HtmlDocument doc, string c_url_dir,string xpath, string attr_name)
+        void EnumUrls(HtmlDocument doc, string xpath, string attr_name, Func<string,string> handler)
         {
             var nodes = doc.DocumentNode.SelectNodes($"{xpath}[@{attr_name}]");
             if (nodes == null) return;
@@ -387,31 +542,25 @@ namespace DownloadWebsite
             {
                 if (m_stoped) break;
                 var attr = node.Attributes[attr_name];
-                var href = attr.Value;
+                var url = attr.Value;
                 try
                 {
-                    string _url = "";
-                    string _href = "";
-                    FormatHref(href, c_url_dir, out _url, out _href);
-                    if(string.IsNullOrEmpty(_url) == false)
-                    {
-                        AddUrl(_url);
-                    }
-                    attr.Value = _href;
+                    attr.Value = handler(url);
                 }
-                catch(Exception e)
+                catch (Exception e)
                 {
-                    Log("exception", $"HandleHtmlHref error:{e.Message} href:{href}");
+                    Log("exception", $"EnumUrls handler href:{url} error:{e.StackTrace} ");
                 }
             }
         }
-        string GetUrl()
+
+        XUrl GetUrl()
         {
             lock (this)
             {
-                if(m_stoped == false && m_url_list.Count > 0)
+                if(m_stoped == false && m_xurl_list.Count > 0)
                 {
-                    return m_url_list.Dequeue().url;
+                    return m_xurl_list.Dequeue();
                 }
                 else
                 {
@@ -419,108 +568,19 @@ namespace DownloadWebsite
                 }
             }
         }
-        void AddUrl(string url)
+        void AddUrl(XUrl xurl)
         {
-            var url_path = XHttp.GetFilePathFromUrl(url);
-
             bool changed = false;
             lock (this)
             {
-                if (m_urls_set.Contains(url_path) == false)
+                if (m_urls_set.Contains(xurl.m_url_path) == false)
                 {
-                    m_url_list.Enqueue(new UrlInfo(UrlType.Html, url));
-                    m_urls_set.Add(url_path);
+                    m_xurl_list.Enqueue(xurl);
+                    m_urls_set.Add(xurl.m_url_path);
                     changed = true;
                 }
             }
             if(changed) RefreshStatus();
-        }
-
-        void FormatHref(string href, string c_url_dir, out string _url, out string _href)
-        {
-            if (href.StartsWith("/"))
-            {
-                href = m_web_host + href;
-            }
-
-            if (href.Contains("//"))
-            {
-                _url = href;
-                // 绝对地址
-                if (href.StartsWith(c_url_dir))
-                {
-                    _href = href.Substring(c_url_dir.Length);
-                }
-                else if (href.StartsWith(m_web_root_url_dir))
-                {
-                    var t1 = href.Substring(m_web_root_url_dir.Length);
-                    var t2 = c_url_dir.Substring(m_web_root_url_dir.Length);
-                    while (t2.LastIndexOf('/') >= 0)// 应该只要 > 就行
-                    {
-                        t1 = "../" + t1;
-                        t2 = t2.Substring(0, t2.LastIndexOf('/'));
-                    }
-                    _href = t1;
-                }
-                else
-                {
-                    _url = null; // 不下载
-                    _href = href;
-                }
-
-                if(string.IsNullOrWhiteSpace(_href) || _href.StartsWith("#"))
-                {
-                    _url = null;
-                }
-
-                if(_url != null)
-                {
-                    if (_href.EndsWith("/"))
-                    {
-                        _href += "index.html";
-                    }
-                    else
-                    {
-                        var name = _href;
-                        int idx = _href.LastIndexOf('/');
-                        if (idx >= 0) name = _href.Substring(idx + 1);
-                        if (name.IndexOf('.') < 0) _href += "/index.html";
-                    }
-                    _url = c_url_dir + _href;
-                }
-            }
-            else
-            {
-                _href = href;
-                Regex reg = new Regex(@"^\w{1,10}:");
-                // 已经是相对地址了，
-                if (string.IsNullOrWhiteSpace(href) || href.StartsWith("#") || reg.IsMatch(href))
-                {
-                    _url = null;
-                }
-                else
-                {
-                    if(_href.EndsWith("/"))
-                    {
-                        _href += "index.html";
-                    }
-                    else
-                    {
-                        var name = _href;
-                        int idx = _href.LastIndexOf('/');
-                        if (idx >= 0) name = _href.Substring(idx + 1);
-                        if (name.IndexOf('.') < 0) _href += "/index.html";
-                    }
-                    _url = c_url_dir + _href;
-                }
-            }
-        }
-
-        static string GetUrlPath(string url)
-        {
-            if (url.IndexOf('#') > 0) url = url.Substring(0, url.IndexOf('#'));
-            if (url.IndexOf('?') > 0) url = url.Substring(0, url.IndexOf('?'));
-            return url;
         }
 
         #endregion Html
