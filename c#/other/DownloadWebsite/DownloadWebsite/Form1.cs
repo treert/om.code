@@ -173,9 +173,9 @@ namespace DownloadWebsite
 
             //if (XConfig.GetBool(s_key_careful_mode_open, true))
             //{
-            //    XUrl.TryParser(web_root);
-            //    var res = XWebClient.GetHttpResponseUri(web_root);
-            //    XUrl.ConvertUrlFragToPath(web_root);
+            //    //XUrl.TryParser(web_root);
+            //    //var res = XWebClient.GetHttpResponseUrl(web_root);
+            //    //XUrl.ConvertUrlFragToPath(web_root);
             //    return;
             //}
 

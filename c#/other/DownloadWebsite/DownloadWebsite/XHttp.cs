@@ -148,7 +148,7 @@ namespace DownloadWebsite
             return ret;
         }
 
-        void InitInfoFromUri(Uri uri)
+        public void InitInfoFromUri(Uri uri)
         {
             m_uri = uri;
             m_origin_url = uri.OriginalString;
@@ -305,7 +305,7 @@ namespace DownloadWebsite
     
         }
 
-        public static Uri GetHttpResponseUri(string url)
+        public static string GetHttpResponseUrl(string url)
         {
             try
             {
@@ -317,7 +317,7 @@ namespace DownloadWebsite
                 {
                     if(res.StatusCode == HttpStatusCode.OK)
                     {
-                        return res.ResponseUri;
+                        return res.ResponseUri.AbsoluteUri;
                     }
                     else
                     {
@@ -329,7 +329,6 @@ namespace DownloadWebsite
             {
                 return null;// 发生错误，不管它
             }
-
         }
 
         public XWebResult GetData(string url)

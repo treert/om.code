@@ -27,6 +27,25 @@ namespace DownloadWebsite
         public int m_thread_cnt = 0;
         int m_thread_limit = 1;
         int m_error_url_cnt = 0;
+        int m_waring_cnt = 0;
+
+        void Warn(string msg)
+        {
+            m_waring_cnt++;
+            Log("warn", msg);
+        }
+
+        void Error(string msg)
+        {
+            m_error_url_cnt++;
+            Log("error", msg);
+        }
+
+        void Exception(string msg)
+        {
+            m_error_url_cnt++;
+            Log("exception", msg);
+        }
 
         LinkedListNode<string> Log(string tag, string msg)
         {
@@ -49,7 +68,7 @@ namespace DownloadWebsite
                 stop_finish = m_thread_cnt == 0 && exit;// 最后一个线程退出时刷新状态。
                 var total_cnt = m_urls_set.Count;
                 var left_cnt = m_xurl_list.Count;
-                m_status = $" left:{left_cnt,-7} error:{m_error_url_cnt,-7} total:{total_cnt,-7} Thread:{m_thread_cnt,-3}";
+                m_status = $" left:{left_cnt,-7} total:{total_cnt,-7} Thread:{m_thread_cnt,-3} error:{m_error_url_cnt,-7} warn:{m_waring_cnt, -7}";
             }
             if (m_refresh_status != null) m_refresh_status();
             if (stop_finish)
@@ -96,15 +115,22 @@ namespace DownloadWebsite
 
             // webclient超时问题，连接数不够
             // > https://www.cnblogs.com/i80386/archive/2013/01/11/2856490.html
-            ServicePointManager.DefaultConnectionLimit = Math.Max(thread_limit + 3, ServicePointManager.DefaultConnectionLimit);
+            ServicePointManager.DefaultConnectionLimit = Math.Max(thread_limit*2 + 3, ServicePointManager.DefaultConnectionLimit);
+
+            m_xurl_list.Clear();
+            m_urls_set.Clear();
+            m_real_url_dic.Clear();
 
             m_error_url_cnt = 0;
+            m_waring_cnt = 0;
             m_thread_limit = thread_limit;
             m_save_dir = save_dir;
             m_log_list.Clear();
             m_force_download = force_download;
 
-            var xurl = XUrl.TryParser(start_url);
+            m_web_root_url_dir = "";
+            m_web_root_file_dir = "";
+            var xurl = _GetRealXUrl(start_url);
             if(xurl == null || xurl.m_is_html == false)
             {
                 Log("error", $"{start_url} does not support, must start with 'http://' or 'https://' and end with '/' or '.html'");
@@ -114,12 +140,9 @@ namespace DownloadWebsite
             m_web_root_file_dir = xurl.m_file_dir;
             m_web_root_url_dir = xurl.m_url_dir;
 
-            m_xurl_list.Clear();
-            m_urls_set.Clear();
-
             AddUrl(xurl);
 
-            Log("start:", $"download website {start_url}");
+            Log("start:", $"download website {xurl.m_origin_url}");
             // 开线程下载
             m_stoped = false;
             TryAddTheadToDownLoad();
@@ -130,7 +153,7 @@ namespace DownloadWebsite
         {
             if (m_stoped == false)
             {
-                Log("stop", "wait for thread to exit");
+                if(quite == false) Log("stop", "wait for thread to exit");
                 m_stoped = true;
             }
             //bool valid = false;
@@ -279,6 +302,9 @@ namespace DownloadWebsite
                         {
                             // 特殊处理，提取url，并修改url
                             var content = HandleCss(result.text, xurl);
+
+                            if (m_stoped) throw new Exception("Has Be Stoped, dont save css");
+
                             Directory.CreateDirectory(Path.GetDirectoryName(save_file));
                             File.WriteAllText(save_file, content);
                             status_str = "OK";
@@ -316,6 +342,101 @@ namespace DownloadWebsite
             RefreshStatus(true);
         }
 
+        string _GetFullUrl(XUrl xurl_root, string url, bool from_file = false)
+        {
+            if (url.StartsWith("//")) return xurl_root.m_uri.Scheme + ':' + url;
+            else if (url.StartsWith("/")) return xurl_root.m_url_host + url;
+            else if (XUrl.IsSchemeUrl(url)) return url;
+            else
+            {
+                if (from_file)
+                    return xurl_root.m_url_dir + XUrl.ConvertPathToUrlFrag(url);
+                else
+                    return xurl_root.m_url_dir + url;
+            }
+        }
+
+        Dictionary<string, string> m_real_url_dic = new Dictionary<string, string>();
+        object m_lock_get_real_url = new object();
+        XUrl _GetRealXUrl(string full_url)
+        {
+            var xurl = XUrl.TryParser(full_url);
+            if (xurl == null) return null;
+
+            // 做些限制
+            if (xurl.m_has_query) return null;
+
+            // 保守处理，不在根目录下都不下载
+            if (m_web_root_url_dir != "" && xurl.m_url_full.StartsWith(m_web_root_url_dir) == false) return null;
+
+            string url_without_fragment = xurl.m_url_path;
+            string fragment = xurl.m_uri.Fragment;
+
+            //if (fragment != "")
+            //{
+            //    url_without_fragment = full_url.Substring(0, full_url.IndexOf('#'));// 不添加后缀的。
+            //}
+
+            bool aready_handle = false;
+            bool error = false;
+            string ret = null;
+            lock (m_lock_get_real_url) {
+                aready_handle = m_real_url_dic.TryGetValue(url_without_fragment, out ret);
+
+                if (aready_handle == false)
+                {
+                    ret = XWebClient.GetHttpResponseUrl(url_without_fragment);// cost time, but need wait here or wait for lock
+                    if (ret == null) error = true;
+                    m_real_url_dic.Add(url_without_fragment, ret);
+                }
+            };
+
+            if (ret != null)
+            {
+                ret += fragment;
+                return XUrl.TryParser(ret);
+            }
+            else
+            {
+                if(error) {
+                    Log("warning", "GetHeader Fail url: " + url_without_fragment);
+                }
+                return null;
+            }
+            
+        }
+
+        string _GetRelateUrl(XUrl xurl_root, XUrl xurl)
+        {
+            // 能成功转相对url，就是打算下载的，这个做个通用限制
+            // 1. 不能有query
+            if (xurl.m_has_query) return null;
+
+            // 保守处理，不在根目录下都不下载
+            if (xurl.m_url_full.StartsWith(m_web_root_url_dir) == false) return null;
+
+            if (xurl.m_url_full == xurl_root.m_url_full) return "#";
+
+            string href = null;
+            if (xurl.m_file_path.StartsWith(xurl_root.m_file_dir))
+            {
+                href = xurl.m_file_path.Substring(xurl_root.m_file_dir.Length);
+            }
+            else
+            {
+                var t1 = xurl.m_file_path.Substring(m_web_root_file_dir.Length);
+                var t2 = xurl_root.m_file_path.Substring(m_web_root_file_dir.Length);
+                while (t2.LastIndexOf('/') > 0)
+                {
+                    t1 = "../" + t1;
+                    t2 = t2.Substring(0, t2.LastIndexOf('/'));
+                }
+                href = t1;
+            }
+            href += xurl.m_uri.Fragment;
+            return href;
+        }
+
         [ThreadStatic]
         static Regex m_reg_css_url = new Regex(@"\burl\((\S*)\)");
         string HandleCss(string content, XUrl xurl_root, bool from_file = false)
@@ -325,60 +446,25 @@ namespace DownloadWebsite
             StringBuilder sb = new StringBuilder();
             var matches = m_reg_css_url.Matches(content);
             List<Match> list = new List<Match>(matches.Count);
+            foreach(Match match in matches)
+            {
+                list.Add(match);
+            }
+
             list.Sort((a, b)=>{ return a.Groups[0].Index - b.Groups[0].Index; });
 
             Func<string, string> get_full_url = (url) =>
             {
-                if (url.StartsWith("//")) return xurl_root.m_uri.Scheme + ':' + url;
-                else if (url.StartsWith("/")) return xurl_root.m_url_host + url;
-                else if (XUrl.IsSchemeUrl(url)) return url;
-                else
-                {
-                    if (from_file)
-                        return xurl_root.m_url_dir + XUrl.ConvertPathToUrlFrag(url);
-                    else
-                        return xurl_root.m_url_dir + url;
-                }
+                return _GetFullUrl(xurl_root, url, from_file);
             };
-
-            Func<XUrl, string> get_relate_url = (xurl) =>
-            {
-                // 能成功转相对url，就是打算下载的，这个做个通用限制
-                // 1. 不能有query
-                if (xurl.m_has_query) return null;
-
-                // 保守处理，不在根目录下都不下载
-                if (xurl.m_url_full.StartsWith(m_web_root_url_dir) == false) return null;
-
-                if (xurl.m_url_full == xurl_root.m_url_full) return "#";
-
-                string href = null;
-                if (xurl.m_file_path.StartsWith(xurl_root.m_file_dir))
-                {
-                    href = xurl.m_file_path.Substring(xurl_root.m_file_dir.Length);
-                }
-                else
-                {
-                    var t1 = xurl.m_file_path.Substring(m_web_root_file_dir.Length);
-                    var t2 = xurl_root.m_file_path.Substring(m_web_root_file_dir.Length);
-                    while (t2.LastIndexOf('/') > 0)
-                    {
-                        t1 = "../" + t1;
-                        t2 = t2.Substring(0, t2.LastIndexOf('/'));
-                    }
-                    href = t1;
-                }
-                href += xurl.m_uri.Fragment;
-                return href;
-            };
-
+            
             Func<string, string> downloader = (url) =>
             {
                 var full = get_full_url(url);
-                var xurl = XUrl.TryParser(full);
+                var xurl = _GetRealXUrl(full);
                 if (xurl == null) return full;
-                var relate = get_relate_url(xurl);
-                if (relate == null) return full;
+                var relate = _GetRelateUrl(xurl_root, xurl);
+                if (relate == null) return xurl.m_origin_url;
 
                 AddUrl(xurl);
                 return relate;
@@ -423,56 +509,16 @@ namespace DownloadWebsite
 
             Func<string, string> get_full_url = (url) =>
             {
-                if (url.StartsWith("//")) return xurl_root.m_uri.Scheme + ':' + url;
-                else if (url.StartsWith("/")) return xurl_root.m_url_host + url;
-                else if (XUrl.IsSchemeUrl(url)) return url;
-                else
-                {
-                    if (from_file)
-                        return xurl_root.m_url_dir + XUrl.ConvertPathToUrlFrag(url);
-                    else
-                        return xurl_root.m_url_dir + url;
-                }
+                return _GetFullUrl(xurl_root, url);
             };
-
-            Func<XUrl, string> get_relate_url = (xurl) =>
-            {
-                // 能成功转相对url，就是打算下载的，这个做个通用限制
-                // 1. 不能有query
-                if (xurl.m_has_query) return null;
-
-                // 保守处理，不在根目录下都不下载
-                if (xurl.m_url_full.StartsWith(m_web_root_url_dir) == false) return null;
-
-                if (xurl.m_url_full == xurl_root.m_url_full) return "#";
-
-                string href = null;
-                if (xurl.m_file_path.StartsWith(xurl_root.m_file_dir))
-                {
-                    href = xurl.m_file_path.Substring(xurl_root.m_file_dir.Length);
-                }
-                else
-                {
-                    var t1 = xurl.m_file_path.Substring(m_web_root_file_dir.Length);
-                    var t2 = xurl_root.m_file_path.Substring(m_web_root_file_dir.Length);
-                    while (t2.LastIndexOf('/') > 0)
-                    {
-                        t1 = "../" + t1;
-                        t2 = t2.Substring(0, t2.LastIndexOf('/'));
-                    }
-                    href = t1;
-                }
-                href += xurl.m_uri.Fragment;
-                return href;
-            };
-
+            
             Func<string, string> downloader = (url) =>
             {
                 var full = get_full_url(url);
-                var xurl = XUrl.TryParser(full);
+                var xurl = _GetRealXUrl(full);
                 if (xurl == null) return full;
-                var relate = get_relate_url(xurl);
-                if (relate == null) return full;
+                var relate = _GetRelateUrl(xurl_root, xurl);
+                if (relate == null) return xurl.m_origin_url;
 
                 AddUrl(xurl);
                 return relate;
@@ -481,10 +527,10 @@ namespace DownloadWebsite
             Func<string, string> handle_html = (url) =>
             {
                 var full = get_full_url(url);
-                var xurl = XUrl.TryParser(full);
+                var xurl = _GetRealXUrl(full);
                 if (xurl == null || xurl.m_is_html == false) return full;// 必须是html
-                var relate = get_relate_url(xurl);
-                if (relate == null) return full;
+                var relate = _GetRelateUrl(xurl_root, xurl);
+                if (relate == null) return xurl.m_origin_url;
 
                 AddUrl(xurl);
                 return relate;
@@ -515,6 +561,8 @@ namespace DownloadWebsite
             doc.LoadHtml(html);
 
             HandleHtml(doc, xurl);
+
+            if (m_stoped) throw new Exception("Has Be Stoped, dont save html");
 
             // save html
             var save_file = GetSaveFileNameFromUrl(xurl);

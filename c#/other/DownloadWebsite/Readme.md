@@ -27,6 +27,10 @@ Winform的UI事件响应时也有一个锁，`Control.Invoke`时就要获取这�
 c# webclient之类的单个host有连接数限制，默认就两个。多线程需要设置下。
 `ServicePointManager.DefaultConnectionLimit = Math.Max(thread_limit + 3, ServicePointManager.DefaultConnectionLimit);`。
 
+## 下载llvm文档，巨大无比
+发现是doxygen生成了几G的数据，虽然表面地址是`llvm.org/docs/doxygen/html`目录下，但实际是301跳转搞的。
+修改下爬虫，追踪301跳转，获取实际的url地址。
+
 ## 发现
 搜索发现了一篇问答，讨论如何把 Html Site 变成 ebook的。
 > https://ebooks.stackexchange.com/questions/2/how-can-i-convert-an-html-site-into-an-ebook
