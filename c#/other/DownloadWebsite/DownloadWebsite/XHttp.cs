@@ -237,6 +237,10 @@ namespace DownloadWebsite
             {
                 var ch = path[i];
                 if (ch == '/') sb.Append(ch);
+                else if(ch == '#')
+                {
+                    sb.Append(path, i, path.Length - i);
+                }
                 else if (ch == '$' && i + 2 < path.Length && Uri.IsHexDigit(path[i+1]) && Uri.IsHexDigit(path[i + 2]))
                 {
                     int num = Uri.FromHex(path[i + 1]) * 16 + Uri.FromHex(path[i + 2]);

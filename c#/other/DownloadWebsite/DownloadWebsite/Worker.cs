@@ -28,6 +28,7 @@ namespace DownloadWebsite
         int m_thread_limit = 1;
         int m_error_url_cnt = 0;
         int m_waring_cnt = 0;
+        public bool m_bao_shou_mode = false;
 
         void Warn(string msg)
         {
@@ -121,6 +122,7 @@ namespace DownloadWebsite
             m_urls_set.Clear();
             m_real_url_dic.Clear();
 
+            m_thread_cnt = 0;
             m_error_url_cnt = 0;
             m_waring_cnt = 0;
             m_thread_limit = thread_limit;
@@ -151,11 +153,11 @@ namespace DownloadWebsite
         bool m_stoped = true;
         public void AbortDownload(bool quite = true)
         {
-            if (m_stoped == false)
-            {
-                if(quite == false) Log("stop", "wait for thread to exit");
-                m_stoped = true;
-            }
+            //if (m_stoped == false)
+            //{
+            //    if(quite == false) Log("stop", "wait for thread to exit");
+            //    m_stoped = true;
+            //}
             //bool valid = false;
             //lock (this)
             //{
@@ -166,13 +168,18 @@ namespace DownloadWebsite
             //    }
             //}
             //if (valid) { Log("stop", "wait for thread to exit"); }
-            
+
             // 粗暴打断
-            //foreach (var thread in m_thread_list)
-            //{
-            //    if (thread.IsAlive) thread.Abort();
-            //}
-            //m_thread_list.Clear();
+            lock (this)
+            {
+                foreach (var thread in m_thread_list)
+                {
+                    if (thread.IsAlive) thread.Abort();
+                }
+                m_thread_list.Clear();
+            }
+            m_thread_cnt = 0;
+            RefreshStatus();
         }
 
         public bool IsWorking()
@@ -347,6 +354,7 @@ namespace DownloadWebsite
             if (url.StartsWith("//")) return xurl_root.m_uri.Scheme + ':' + url;
             else if (url.StartsWith("/")) return xurl_root.m_url_host + url;
             else if (XUrl.IsSchemeUrl(url)) return url;
+            else if (url.StartsWith("#")) return xurl_root.m_url_path + url;
             else
             {
                 if (from_file)
@@ -368,6 +376,12 @@ namespace DownloadWebsite
 
             // 保守处理，不在根目录下都不下载
             if (m_web_root_url_dir != "" && xurl.m_url_full.StartsWith(m_web_root_url_dir) == false) return null;
+
+            if (m_bao_shou_mode == false)
+            {
+                return xurl;// 不是保守模式，就不要去真的获取真实地址了。
+            }
+
 
             string url_without_fragment = xurl.m_url_path;
             string fragment = xurl.m_uri.Fragment;

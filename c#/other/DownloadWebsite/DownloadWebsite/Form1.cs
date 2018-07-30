@@ -149,7 +149,7 @@ namespace DownloadWebsite
             this.textBox_proxy_pwd.Text = XConfig.GetString(s_key_proxy_pwd);
 
             // Mode
-            this.checkBox_careful_mode_open.Checked = XConfig.GetBool(s_key_careful_mode_open, true);
+            this.checkBox_careful_mode_open.Checked = XConfig.GetBool(s_key_careful_mode_open, false);
 
             this.checkBox_force_down.Checked = XConfig.GetBool(s_key_force_download, false);
         }
@@ -206,6 +206,7 @@ namespace DownloadWebsite
             }
 
             Worker.singleton.SetProxyInfo(proxy_use, proxy_host, proxy_port, proxy_user, proxy_pwd);
+            Worker.singleton.m_bao_shou_mode = XConfig.GetBool(s_key_careful_mode_open, false);
             Worker.singleton.StartDownload(web_root,save_dir, force_download, cnt);
             RefreshUI();
             FillUI();
