@@ -13,9 +13,11 @@ namespace ConsoleTest
         {
             var b1 = File.Exists(@"E:\MyGit\github\script_utils\c#\other");
             var b2 = Directory.Exists(@"E:\MyGit\github\script_utils\c#\other");
-            var b3 = File.Exists(@"E:\MyGit\github\script_utils\c#\other\Readme");
-            var b4 = Directory.Exists(@"E:\MyGit\github\script_utils\c#\other\Readme");
+            var b3 = File.Exists(@"E:\MyGit\github\script_utils\c#\other\Readme.md");
+            var b4 = Directory.Exists(@"E:\MyGit\github\script_utils\c#\other\Readme.md");
             Console.WriteLine($"{b1} {b2} {b3} {b4}");
+
+            TestFileIO.TestParallelReadAndWrite();
         }
     }
 }
