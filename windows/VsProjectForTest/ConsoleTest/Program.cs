@@ -18,6 +18,8 @@ namespace ConsoleTest
             Console.WriteLine($"{b1} {b2} {b3} {b4}");
 
             TestFileIO.TestParallelReadAndWrite();
+            TestFileIO.TestCreateBigFile();
+            TestFileIO.TestCreateBigFile(1024*1024*50);
         }
     }
 }

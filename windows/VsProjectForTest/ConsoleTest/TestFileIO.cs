@@ -118,5 +118,12 @@ namespace ConsoleTest
 
             Console.ForegroundColor = ConsoleColor.White;
         }
+
+        public static void TestCreateBigFile(long len = 1024*1024*100)
+        {
+            var f = File.Open("test.txt",FileMode.OpenOrCreate);
+            f.SetLength(len);
+            f.Close();
+        }
     }
 }
