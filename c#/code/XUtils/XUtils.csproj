@@ -46,6 +46,7 @@
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="XEvent.cs" />
+    <Compile Include="XHttpDownLoader.cs" />
     <Compile Include="XPool.cs" />
     <Compile Include="XSingleton.cs" />
   </ItemGroup>
