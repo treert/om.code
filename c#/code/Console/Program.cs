@@ -170,19 +170,56 @@ class Program
 
     static void TestHttpDownLoader()
     {
-        XHttpDownLoader.singleton.StartDownLoadBigFile(@"https://update.dnt.123u.com/Temp/Bundle.zip", @"C:\Users\treertzhu\Desktop\tmp\Bundle.zip");
+        Console.Write("选择下载目标目录：1. Desktop/tmp/ 其他. 当前目录 ：");
+        var dir_opt = Console.ReadLine();
+        Console.Write("设置线程数（默认 1）：");
+        var num_str = Console.ReadLine();
+        int num = 1;
+        if (int.TryParse(num_str, out num) == false) num = 1;
+        Console.Write("是否重新下载（Y/N）(默认N)：");
+        var redownload_opt = Console.ReadLine();
+
+
+        string path = Environment.CurrentDirectory;
+        if(dir_opt == "1")
+        {
+            path = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+            path = Path.Combine(path, "tmp");
+        }
+
+        Directory.CreateDirectory(path);
+        path = $@"{path}/Bundle.zip";
+        if(File.Exists(path) && redownload_opt.ToLower() == "y")
+        {
+            File.Delete(path);
+        }
+
+        XHttpDownLoader.singleton.DownloadThreadCount = num;
+        XHttpDownLoader.singleton.StartDownLoadBigFile(@"https://update.dnt.123u.com/Temp/Bundle.zip", path);
         Console.WriteLine($"DownLoad {XHttpDownLoader.singleton.m_total_size} bytes");
+        long start_size = XHttpDownLoader.singleton.m_current_size;
         Stopwatch sw = new Stopwatch();
         sw.Start();
         while (XHttpDownLoader.singleton.CheckIsFinished() == false)
         {
-            
-            Console.Write($"\rTime:{sw.ElapsedMilliseconds, -20} Speed:{XHttpDownLoader.singleton.m_current_size/ (sw.ElapsedMilliseconds+1)*1000.0,-4:F0} {XHttpDownLoader.singleton.m_downloaded_percent}");
+            long size = XHttpDownLoader.singleton.m_current_size - start_size;
+            Console.Write($"\rTime:{sw.ElapsedMilliseconds, -20:N0} Speed:{size / (sw.ElapsedMilliseconds+1)*1000.0,-10:N0} {XHttpDownLoader.singleton.m_downloaded_percent:P2}");
             Thread.Sleep(1000);
         }
         sw.Stop();
-        Console.Write($"cost time: {sw.ElapsedMilliseconds}");
+        Console.WriteLine($"\ncost time: {sw.ElapsedMilliseconds}");
+
+        Console.WriteLine("Start UnZip");
+
+        sw.Restart();
+        XHttpDownLoader.MultiThreadUnZip(path, path + ".files/", (percent) => {
+            Console.Write($"\rTime:{sw.ElapsedMilliseconds,-20:N0} {percent:P2}");
+        });
+        sw.Stop();
+        Console.WriteLine($"\ncost time: {sw.ElapsedMilliseconds}");
         Console.ReadKey();
+
+
     }
 
     static void Test(object[] args)

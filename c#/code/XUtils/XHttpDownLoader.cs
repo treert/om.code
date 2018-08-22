@@ -11,13 +11,14 @@ using System.Threading.Tasks;
 using System.Threading;
 using System.Net;
 using System.IO;
+using ICSharpCode.SharpZipLib.Zip;
 
 namespace XUtils
 {
     public class XHttpDownLoader: XSingleton<XHttpDownLoader>
     {
         const int BlockSize = 1024 * 1024 * 4;
-        const int DownloadThreadCount = 10;
+        public int DownloadThreadCount = 1;
         const int TimeoutWait = 5*1000;
         const int ReadWriteTimeOut = 2 * 1000;
         const int MaxTryTime = -1;// 单个block下载出错，重新尝试次数限制，-1无限次
@@ -287,5 +288,91 @@ namespace XUtils
 
             return ret;
         }
+
+        #region MultiThreadUnZip
+        public static void MultiThreadUnZip(string zip_file_path, string dst_dir, Action<float> process_callback)
+        {
+            using (var zip_file = new ZipFile(zip_file_path))
+            {
+                object mutex = new object();
+                object mutex_current_size = new object();
+                int entry_idx = 0;
+                int entry_cnt = (int)zip_file.Count;
+                long total_size = 0;
+                long current_size = 0;
+
+                for (var i = 0; i < entry_cnt; i++)
+                {
+                    var entry = zip_file[i];
+                    if (string.IsNullOrEmpty(entry.Name) == false)
+                    {
+                        total_size += entry.Size;
+                    }
+                }
+                process_callback(0);
+                int thread_count = Math.Max(Environment.ProcessorCount, 4);
+                Thread[] thread_list = new Thread[thread_count];
+                for (var i = 0; i < thread_count; i++)
+                {
+                    var thread = new Thread(() =>
+                    {
+                        byte[] data = new byte[4 * 1024];
+                        do
+                        {
+                            ZipEntry theEntry = null;
+                            lock (mutex)
+                            {
+                                if (entry_idx < entry_cnt)
+                                {
+                                    theEntry = zip_file[entry_idx];
+                                    entry_idx++;
+                                }
+                            }
+                            if (theEntry == null) return;
+
+                            string directoryName = Path.GetDirectoryName(theEntry.Name);
+                            string fileName = Path.GetFileName(theEntry.Name);
+                            if (!string.IsNullOrEmpty(directoryName))
+                            {
+                                Directory.CreateDirectory(dst_dir + directoryName);
+                            }
+                            //if (directoryName != null && !directoryName.EndsWith("/"))
+                            //{
+                            //}
+                            if (string.IsNullOrEmpty(fileName)) continue;
+
+                            using (var s = zip_file.GetInputStream(theEntry.ZipFileIndex))
+                            using (FileStream streamWriter = File.Create(dst_dir + theEntry.Name))
+                            {
+                                int size;
+                                while (true)
+                                {
+                                    size = s.Read(data, 0, data.Length);
+                                    if (size > 0)
+                                    {
+                                        Interlocked.Add(ref current_size, size);
+                                        process_callback((float)1.0 * current_size / total_size);
+                                        streamWriter.Write(data, 0, size);
+                                    }
+                                    else
+                                    {
+                                        break;
+                                    }
+                                }
+                            }
+
+                        } while (true);
+                    });
+                    thread.Start();
+                    thread_list[i] = thread;
+                }
+
+                for (var i = 0; i < thread_count; i++)
+                {
+                    thread_list[i].Join();
+                }
+            }
+        }
+        #endregion MultiThreadUnZip
     }
 }
