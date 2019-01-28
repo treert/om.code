@@ -1,0 +1,30 @@
+Windows Registry Editor Version 5.00 
+
+; Open files 
+[HKEY_CLASSES_ROOT\*\shell\om_vscode]
+@="Edit with VS Code"
+"Icon"="%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\Code.exe,0"
+
+[HKEY_CLASSES_ROOT\*\shell\om_vscode\command]
+@="\"%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\Code.exe\" \"%1\""
+
+; This will make it appear when you right click ON a folder 
+; The "Icon" line can be removed if you don't want the icon to appear 
+
+[HKEY_CLASSES_ROOT\Directory\shell\om_vscode]
+@="Open Folder as VS Code Project"
+"Icon"="%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\Code.exe,0"
+
+[HKEY_CLASSES_ROOT\Directory\shell\om_vscode\command]
+@="\"%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\Code.exe\" \"%V\""
+
+
+; This will make it appear when you right click INSIDE a folder 
+; The "Icon" line can be removed if you don't want the icon to appear 
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\om_vscode]
+@="Open Folder as VS Code Project"
+"Icon"="%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\Code.exe,0"
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\om_vscode\command]
+@="\"%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\Code.exe\" \"%V\""

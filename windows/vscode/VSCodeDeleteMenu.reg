@@ -1,0 +1,14 @@
+Windows Registry Editor Version 5.00 
+ 
+; Open files 
+[-HKEY_CLASSES_ROOT\*\shell\om_vscode]
+ 
+[-HKEY_CLASSES_ROOT\*\shell\om_vscode\command]
+ 
+[-HKEY_CLASSES_ROOT\Directory\shell\om_vscode]
+ 
+[-HKEY_CLASSES_ROOT\Directory\shell\om_vscode\command]
+ 
+[-HKEY_CLASSES_ROOT\Directory\Background\shell\om_vscode]
+ 
+[-HKEY_CLASSES_ROOT\Directory\Background\shell\om_vscode\command]
