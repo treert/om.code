@@ -1,0 +1,5 @@
+# Nested build directory
+build/
+
+# . 开头的目录都忽略掉
+.*/

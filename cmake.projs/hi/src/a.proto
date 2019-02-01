@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package Xpb;
+
+message TB{
+	int32 haha = 1;
+}
+
+message Test{
+	string name = 1;
+	TB b=2;
+}
