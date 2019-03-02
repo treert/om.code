@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\libs\om.utils\om.utils.csproj" />
+    <ProjectReference Include="..\om.utils\om.utils.csproj" />
   </ItemGroup>
 
 </Project>
