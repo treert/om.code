@@ -74,10 +74,10 @@ namespace om.utils
         IEnumerator<T> m_itor;
 
         public bool HasValue { get; private set; }
-        public MyItor(IEnumerator<T> itor)
+        public MyItor(IEnumerable<T> args)
         {
-            Debug.Assert(itor != null, "itor can not be null");
-            m_itor = itor;
+            Debug.Assert(args != null, "args can not be null");
+            m_itor = args.GetEnumerator();
             HasValue = m_itor.MoveNext();
         }
 
@@ -166,14 +166,8 @@ namespace om.utils
             m_sub_cmd_types.Add(group);
         }
 
-        public ICmd Parse(string[] args)
-        {
-            return null;
-        }
+        public virtual void PrintHelp(){
 
-        public bool Run(string[] args)
-        {
-            return false;
         }
     }
 
@@ -264,7 +258,7 @@ namespace om.utils
         public string alias;
         public string tip;
 
-        Type m_type;
+        public Type m_type;
 
         public CmdParser(Type type)
         {
@@ -316,8 +310,7 @@ namespace om.utils
             }
         }
 
-        public T Parser<T>(T obj, IEnumerable<string> args){
-            var itor = new MyItor<string>(args.GetEnumerator());
+        public ICmd Parse(ICmd obj, MyItor<string> itor){
             while(itor.HasValue){
                 string name = itor.Current;
                 if(name.StartsWith("-")){
@@ -342,15 +335,24 @@ namespace om.utils
             }
             return obj;
         }
+
+        public ICmd Parse(ICmd obj, IEnumerable<string> args){
+            var itor = new MyItor<string>(args);
+            return Parse(obj, itor);
+        }
     }
 
     class CmdGroupParser
     {
+        CmdGroup m_group;
         CmdParser m_parser;
         Dictionary<string, CmdGroupParser> m_sub_parsers;
         public CmdGroupParser(CmdGroup group)
         {
-            m_parser = new CmdParser(group.m_cmd_type);
+            m_group = group;
+            if(group.m_cmd_type != null){
+                m_parser = new CmdParser(group.m_cmd_type);
+            }
             m_sub_parsers = new Dictionary<string, CmdGroupParser>();
             if(group.m_sub_cmd_types != null){
                 foreach(var g in group.m_sub_cmd_types){
@@ -364,7 +366,25 @@ namespace om.utils
         }
 
         public ICmd Parse(IEnumerable<string> args){
-            return null;
+            var itor = new MyItor<string>(args);
+            // get type
+            CmdGroupParser g = this;
+            List<string> cmds = new List<string>();
+            while(itor.HasValue){
+                if(g.m_sub_parsers.ContainsKey(itor.Current)){
+                    g = g.m_sub_parsers[itor.Current];
+                    cmds.Add(itor.Current);
+                    itor.MoveNext();
+                }
+            }
+            if(g.m_parser == null){
+                g.m_group.PrintHelp();
+                return null;
+            }
+            
+            var obj = (ICmd)Activator.CreateInstance(g.m_parser.m_type, true);
+            g.m_parser.Parse(obj, itor);
+            return obj;
         }
     }
 
