@@ -69,8 +69,6 @@ namespace om.utils
         
     }
 
-
-
     class MyItor<T> : IDisposable
     {
         IEnumerator<T> m_itor;
@@ -187,6 +185,8 @@ namespace om.utils
         public string tip;
         public bool required;
 
+        public bool m_has_input = false;
+
         Type m_type;
         SerializeTool.SerializeBase m_handler;
 
@@ -235,7 +235,17 @@ namespace om.utils
 
         public void Parse(object obj, MyItor<string> args)
         {
+            if(m_has_input){
+                if(name == ""){
+                    throw new Exception("args duplication");
+                }
+                else{
+                    throw new Exception($"option -{name} duplication");
+                }
+            }
+            m_has_input = true;
             var val = m_handler.Parse(args, m_type);// 格式错误让handle抛异常好了
+            
             if(m_field != null)
             {
                 m_field.SetValue(obj, val);
@@ -305,6 +315,33 @@ namespace om.utils
                 }
             }
         }
+
+        public T Parser<T>(T obj, IEnumerable<string> args){
+            var itor = new MyItor<string>(args.GetEnumerator());
+            while(itor.HasValue){
+                string name = itor.Current;
+                if(name.StartsWith("-")){
+                    name = name.Substring(1);
+                    itor.MoveNext();
+                }
+                else{
+                    name = "";
+                }
+                OptionInfo option;
+                if(m_options.TryGetValue(name, out option)){
+                    option.Parse(obj, itor);
+                }
+                else{
+                    throw new Exception($"unkown option -{name}");
+                }
+            }
+            foreach(var item in m_options.Values){
+                if(item.required && item.m_has_input == false){
+                    throw new Exception($"miss requied option -{item.name} {item.tip}");
+                }
+            }
+            return obj;
+        }
     }
 
     class CmdGroupParser
@@ -314,7 +351,20 @@ namespace om.utils
         public CmdGroupParser(CmdGroup group)
         {
             m_parser = new CmdParser(group.m_cmd_type);
-            foreach
+            m_sub_parsers = new Dictionary<string, CmdGroupParser>();
+            if(group.m_sub_cmd_types != null){
+                foreach(var g in group.m_sub_cmd_types){
+                    var p = new CmdGroupParser(g);
+                    m_sub_parsers.Add(p.m_parser.name, p);
+                    if(string.IsNullOrWhiteSpace(p.m_parser.alias) != false){
+                        m_sub_parsers.Add(p.m_parser.alias, p);
+                    }
+                }
+            }
+        }
+
+        public ICmd Parse(IEnumerable<string> args){
+            return null;
         }
     }
 
