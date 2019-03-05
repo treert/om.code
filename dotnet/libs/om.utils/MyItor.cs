@@ -30,6 +30,13 @@ namespace om.utils
             MoveNext();
         }
 
+        public MyItor(T arg)
+        {
+            List<T> list = new List<T>() { arg };
+            m_itor = list.GetEnumerator();
+            MoveNext();
+        }
+
         public T Current
         {
             get
