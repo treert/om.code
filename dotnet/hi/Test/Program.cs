@@ -7,26 +7,18 @@ using om.utils;
 
 namespace Test
 {
-    [Option("test", tip = "test command")]
-    class TestCmd
+    [Option("test", tip = "Test command")]
+    class TestCmd:CmdLine.ICmd
     {
-        public int m_args;
-        public int _a = 2;
-        public bool b;
-        string c;
-        public int A { get; set; } = 3;
+        [Option("",tip = "Args is a int")]
+        public int num;
+        public bool help;
+        [Option("message",alias = "m", required = true, tip = "Test option message")]
+        public string Message { get; set; }
 
-        public int[] F { get;}
-
-         int this[int idx]
+        public void Exec()
         {
-            get { return 0; }
-            set { }
-        }
-
-        public void f()
-        {
-
+            Console.WriteLine($"input {help} {num} {Message}");
         }
     }
 
@@ -35,19 +27,14 @@ namespace Test
         public static bool exit = false;
         static void Main(string[] args)
         {
-            Console.WriteLine("Hello World!");
+            object a = null;
+            Console.WriteLine($" a={a} Hello World!");
+            Console.WriteLine(string.Format("a={0}",a));
 
-            Thread th = new Thread(Work);
-            th.Start();
+            //Thread th = new Thread(Work);
+            //th.Start();
 
-            var type = typeof(TestCmd);
-            var fields = type.GetFields();
-            var properties = type.GetProperties();
-
-            var ff = type.GetProperty("F");
-            var xx = ff.GetIndexParameters();
-
-            TestCmd t = new TestCmd();
+            var cmd_parser = CmdLine.CreateCmdParser<TestCmd>();
 
 
             while (true)
@@ -58,7 +45,8 @@ namespace Test
                 {
                     return;
                 }
-                Console.WriteLine("< {0}", line);
+                cmd_parser.Parse(line.Split(' '))?.Exec();
+                // Console.WriteLine("< {0}", line);
             }
         }
 

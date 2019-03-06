@@ -12,9 +12,10 @@ using System.Text;
 namespace om.utils
 {
     /// <summary>
-    /// 替代 IEnumerator<T> ，两个原因
+    /// 替代 IEnumerator<T> ，几个原因
     /// 1. 没有判断当前是否有值的接口，MoveNext会移动指针。MyItor增加了HasValue
-    /// 2. 初始化时，指针指向第一个元素之前，个人希望指向第一个元素
+    /// 2. 初始化时，指针指向第一个元素之前，个人希望指向第一个元素。
+    /// 3. Current 不会报错，当没有值后，Current返回default(T)
     /// </summary>
     /// <typeparam name="T"></typeparam>
     public class MyItor<T> : IDisposable
@@ -41,7 +42,7 @@ namespace om.utils
         {
             get
             {
-                return m_itor.Current;
+                return HasValue ? m_itor.Current : default(T);
             }
         }
 

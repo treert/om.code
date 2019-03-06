@@ -22,7 +22,19 @@ namespace om.utils
             Specializer<char>.Fun = (arg) => Convert.ToChar(arg);
             Specializer<byte>.Fun = (arg) => Convert.ToByte(arg);
             Specializer<sbyte>.Fun = (arg) => Convert.ToSByte(arg);
+            Specializer<short>.Fun = (arg) => Convert.ToInt16(arg);
+            Specializer<ushort>.Fun = (arg) => Convert.ToUInt16(arg);
+            Specializer<int>.Fun = (arg) => Convert.ToInt32(arg);
+            Specializer<uint>.Fun = (arg) => Convert.ToUInt32(arg);
+            Specializer<long>.Fun = (arg) => Convert.ToInt64(arg);
+            Specializer<ulong>.Fun = (arg) => Convert.ToUInt64(arg);
+            Specializer<float>.Fun = (arg) => Convert.ToSingle(arg);
+            Specializer<double>.Fun = (arg) => Convert.ToDouble(arg);
 
+            Specializer<decimal>.Fun = (arg) => Convert.ToDecimal(arg);
+            Specializer<DateTime>.Fun = (arg) => Convert.ToDateTime(arg);
+
+            Specializer<byte[]>.Fun = (arg) => Convert.FromBase64String(arg);
         }
 
         public class Specializer<T>
