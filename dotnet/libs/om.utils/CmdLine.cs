@@ -1,18 +1,32 @@
 ﻿/*
  * 1.0 
 例子：
+    class TestVal
+    {
+        string name;
+        public TestVal(string str) { name = str; }
+        public static TestVal ParseFromString(string str)
+        {
+            return new TestVal(str);
+        }
+        public override string ToString()
+        {
+            return name;
+        }
+    }
     [Option("test", tip = "Test command")]
     class TestCmd:CmdLine.ICmd
     {
         [Option("",tip = "Args is a int")]
         public int num;
         public bool help;
+        public TestVal val;
         [Option("message",alias = "m", required = true, tip = "Test option message")]
         public string Message { get; set; }
 
         public void Exec()
         {
-            Console.WriteLine($"input {help} {num} {Message}");
+            Console.WriteLine($"input {help} {num} {Message} {val}");
         }
     }
     // ... in main
@@ -70,6 +84,7 @@ using System.Reflection;
 ///             - ICmdParser 提供连个接口 Parse 和 PrintHelp
 ///             - 两个工厂创建方法 CreateCmdParser 和 CreateGroupParser，据说这样写比较好
 ///                 - CmdGroupParser提供SetCmd/SetSubCmd/SetSubGroup来组装命令组
+///     - 扩展。不支持容器扩展，但是支持单字符串序列化扩展，只要自定义的类实现`static ParseFromString(string str)`就行，权限和返回值不敏感。
 ///               
 /// </summary>
 namespace om.utils
@@ -233,16 +248,16 @@ namespace _Internal.CmdLine
 
     /// <summary>
     /// 1.0 
-    /// 不支持扩展，只接受指定的类型
-    /// 容器类型只支持少数几个。Array，List
     /// </summary> 
     static class CmdSerializeMgr
     {
         // 不要作死
         // 主要是给 Primitives类型，可以扩充给具体类型，这里的元素每次解析消耗一个字符串
-        public static Dictionary<Type, CmdSerializeBase> m_sp_handlers;
+        static Dictionary<Type, CmdSerializeBase> m_sp_handlers;
         // 主要是给泛型或者数组类的容器，发现Enum也是这类的
         static List<CmdSerializeBase> m_other_handlers;
+
+        static SerializeFromString m_str_handler;
 
         static CmdSerializeMgr()
         {
@@ -274,6 +289,8 @@ namespace _Internal.CmdLine
                 new SerializeList(),
                 new SerializeDictionary(),
             };
+
+            m_str_handler = new SerializeFromString();
         }
 
         public static CmdSerializeBase FindHandler(Type type)
@@ -283,14 +300,18 @@ namespace _Internal.CmdLine
                 return m_sp_handlers[type];
             }
 
-            var handler = m_other_handlers.Find(h => h.CanHandle(type));
+            if (m_str_handler.CanHandle(type))
+            {
+                return m_str_handler;
+            }
 
+            var handler = m_other_handlers.Find(h => h.CanHandle(type));
             return handler;
         }
 
         public static bool CanInContainer(Type type)
         {
-            return type.IsEnum || m_sp_handlers.ContainsKey(type);
+            return type.IsEnum || m_sp_handlers.ContainsKey(type) || m_str_handler.CanHandle(type);
         }
     }
 
@@ -739,6 +760,32 @@ namespace _Internal.CmdLine
         }
     }
 
+    class SerializeFromString : CmdSerializeBase
+    {
+        public override bool CanHandle(Type type)
+        {
+            var func = type.GetMethod("ParseFromString",
+                BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Public,
+                null,
+                new Type[] { typeof(string) },
+                null);
+            return func != null;
+        }
+        public override string GetTypeName(Type type)
+        {
+            return type.Name;
+        }
+
+        public override object Parse(string str, Type type)
+        {
+            var func = type.GetMethod("ParseFromString",
+                BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Public,
+                null,
+                new Type[] { typeof(string) },
+                null);
+            return func.Invoke(null, new object[] { str });
+        }
+    }
 
     #region special type serializer
     class SerializeBoolean : CmdSerializeBase

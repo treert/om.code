@@ -7,18 +7,32 @@ using om.utils;
 
 namespace Test
 {
+    class TestVal
+    {
+        string name;
+        public TestVal(string str) { name = str; }
+        public static TestVal ParseFromString(string str)
+        {
+            return new TestVal(str);
+        }
+        public override string ToString()
+        {
+            return name;
+        }
+    }
     [Option("test", tip = "Test command")]
     class TestCmd:CmdLine.ICmd
     {
         [Option("",tip = "Args is a int")]
         public int num;
         public bool help;
+        public TestVal val;
         [Option("message",alias = "m", required = true, tip = "Test option message")]
         public string Message { get; set; }
 
         public void Exec()
         {
-            Console.WriteLine($"input {help} {num} {Message}");
+            Console.WriteLine($"input {help} {num} {Message} {val}");
         }
     }
 
