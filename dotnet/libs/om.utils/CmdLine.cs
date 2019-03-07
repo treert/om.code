@@ -243,7 +243,7 @@ namespace om.utils
 namespace _Internal.CmdLine
 {
     using om.utils;
-
+    using System.Text;
     using CmdSerializeBase = om.utils.CmdLine.CmdSerializeBase;
 
     /// <summary>
@@ -355,11 +355,17 @@ namespace _Internal.CmdLine
             get
             {
                 string req = required ? "* " : "  ";
+
+                CmdPrintLineTool tool = new CmdPrintLineTool(3, 10,10);
                 if (name == "")
                 {
-                    return $"args: {req}{TypeNameForPrint}  {tip}";
+                    tool.Add($"Args: {req}", TypeNameForPrint, tip);
                 }
-                return $"{req}-{name} {TypeNameForPrint}  {tip}";
+                else
+                {
+                    tool.Add($"{req}-{name}", TypeNameForPrint, tip);
+                }
+                return tool.GetPrintString().TrimEnd();
             }
         }
 
@@ -533,7 +539,7 @@ namespace _Internal.CmdLine
             var itor = new MyItor<string>(args);
             if (itor.HasValue && itor.Current == "-?" || itor.Current == "-？")
             {
-                PrintHelp(name);
+                PrintHelp();
                 return null;
             }
             var obj = Activator.CreateInstance(m_type, true);
@@ -551,18 +557,13 @@ namespace _Internal.CmdLine
 
         public void PrintHelp(string cmd_prefix = "")
         {
-            if (string.IsNullOrWhiteSpace(cmd_prefix) == false)
-            {
-                Console.WriteLine($"Use: {cmd_prefix} [args] [options]");
-                Console.WriteLine();
-            }
+            Console.WriteLine($"Use: {cmd_prefix} [args] [options]");
+            Console.WriteLine();
 
             OptionParser args_option;
             if (m_options.TryGetValue("", out args_option))
             {
-                Console.WriteLine("Args:");
-                Console.Write(args_option.required ? "* " : "  ");
-                Console.WriteLine($"{args_option.TypeNameForPrint}  {args_option.tip}");
+                Console.WriteLine(args_option.MessageForTip);
                 Console.WriteLine();
             }
 
@@ -722,33 +723,117 @@ namespace _Internal.CmdLine
             Debug.Assert(strs?.Length == m_col_num);
             for (int i = 0; i < m_col_num; i++)
             {
-                m_cols[i].Add(strs[i]??"");
+                var str = strs[i] ?? "";
+                m_cols[i].Add(str.TrimEnd().Replace("\t",""));
             }
         }
 
         public void Print()
         {
+            Console.Write(GetPrintString());
+        }
+
+        public string GetPrintString()
+        {
+            // 约定下，除了最后一列，前面的列应该都是半角字符
+            StringBuilder sb = new StringBuilder();
+
+            int pre_width = 0;
+
             int[] lens = new int[m_col_num];
             m_lens.CopyTo(lens, 0);
-            for(var i = 0; i < m_col_num-1; i++)
+            for (var i = 0; i < m_col_num - 1; i++)
             {
                 m_cols[i].ForEach(h => lens[i] = Math.Max(lens[i], h.Length + 2));
+                pre_width += lens[i];
             }
+            string pad_pre = " ".PadRight(pre_width);
+
+            int max_width = Math.Max(pre_width + 10, Console.WindowWidth);
+            int last_len = max_width - pre_width;
 
             for (var i = 0; i < m_cols[0].Count; i++)
             {
-                for(var k = 0; k < m_col_num-1; k++)
+                for (var k = 0; k < m_col_num - 1; k++)
                 {
                     var str = m_cols[k][i];
-                    Console.Write(str);
-                    int cnt = str.Length;
-                    while(cnt++ < lens[k])
+                    sb.Append(str.PadRight(lens[k]));
+                }
+                // 最后一列可能被切断
+                string last = m_cols[m_col_num - 1][i];
+                int len = last.Length;
+                int idx = 0;
+                int cur = 0;
+                while (idx < len)
+                {
+                    if(last[idx] == '\r')
                     {
-                        Console.Write(' ');
+                        idx++;
+                        continue;
+                    }
+                    else if(last[idx] == '\n')
+                    {
+                        cur = 0;
+                        // new line
+                        idx++;
+                        sb.AppendLine();
+                        sb.Append(pad_pre);
+                        continue;
+                    }
+                    int t = GetCharWidth(last[idx]);
+                    if (cur + t <= last_len)
+                    {
+                        cur += t;
+                        sb.Append(last[idx++]);
+                    }
+                    else
+                    {
+                        cur = 0;
+                        // new line
+                        sb.AppendLine();
+                        sb.Append(pad_pre);
                     }
                 }
-                Console.WriteLine(m_cols[m_col_num - 1][i]);
+                sb.AppendLine();
             }
+
+            return sb.ToString();
+        }
+
+        static int GetCharWidth(char ch)
+        {
+            return IsFullWidthChar(ch) ? 2 : 1;
+        }
+
+        static HashSet<char> s_sp_full_width_chars = new HashSet<char>
+        {
+            '｟',
+            '｠',
+            '￠',
+            '￡',
+            '￢',
+            '￣',
+            '￤',
+            '￥',
+            '￦',
+            '│',
+            '←',
+            '↑',
+            '→',
+            '↓',
+            '■',
+            '○',
+        };
+        static bool IsFullWidthChar(char ch)
+        {
+            // > https://zh.wikipedia.org/wiki/全形和半形
+            // > https://www.jianshu.com/p/e3e281193d14
+            // > https://blog.csdn.net/youoran/article/details/8299731
+
+            return ('\uff01' <= ch && ch <= '\uff5e') // ASCII 全角版本，特殊的 空格是'\u3000'
+                | ('\u3000' <= ch && ch <= '\u9fff') // CJK 中日韩
+                | s_sp_full_width_chars.Contains(ch)
+                ;
         }
 
         public void Clear()

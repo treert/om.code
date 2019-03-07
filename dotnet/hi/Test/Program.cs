@@ -27,7 +27,7 @@ namespace Test
         public int num;
         public bool help;
         public TestVal val;
-        [Option("message",alias = "m", required = true, tip = "Test option message")]
+        [Option("message",alias = "m", required = true, tip = "Test option message dsfassssssssssssss\nssssssssssssssssssssssssssssssafsdfasdfasdfasdfw我是\n谁，我在哪儿，我将到哪儿去")]
         public string Message { get; set; }
 
         public void Exec()
