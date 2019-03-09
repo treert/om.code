@@ -3,6 +3,9 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
+# . 开头的目录都忽略掉
+.*/
+
 # User-specific files
 *.suo
 *.user
