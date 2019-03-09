@@ -7,6 +7,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\libs\om.utils\om.utils.csproj" />
+    <ProjectReference Include="..\..\libs\XSerialize\XSerialize.csproj" />
   </ItemGroup>
 
 </Project>

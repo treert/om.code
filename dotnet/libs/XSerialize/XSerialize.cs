@@ -34,6 +34,28 @@ namespace XSerialize
             _serializer.Serialize(stream, obj);
         }
 
+        public byte[] Serialize(object obj)
+        {
+            using(MemoryStream stream = new MemoryStream())
+            {
+                Serialize(stream, obj);
+                return stream.ToArray();
+            }
+        }
+
+        public object Deserialize(byte[] bytes)
+        {
+            using(MemoryStream stream = new MemoryStream(bytes))
+            {
+                return Deserialize(stream);
+            }
+        }
+
+        public T Deserialize<T>(byte[] bytes)
+        {
+            return (T)Deserialize(bytes);
+        }
+
         public T Deserialize<T>(Stream stream)
         {
             return (T)Deserialize(stream);
