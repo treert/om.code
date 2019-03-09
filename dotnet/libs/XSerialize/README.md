@@ -1,23 +1,6 @@
 ﻿# 序列化工具
 
 ## 二进制
-### XBinarySerializer2
-保存了类型信息，使用了`Type.GetType(AssemblyQualifiedName);`使用方便。例子： 
-```c#
-using XBinarySerializer = XSerialize.XBinarySerializer2;
-{
-    List<object[]> xx = new List<object[]>() { new object[] { 0, 1 }, new object[] { 2, 3 } };
-    xx[0][1] = xx;
-    var serializer = new XBinarySerializer();// 初始化
-    using (var stream = new MemoryStream())
-    {
-        serializer.Serialize(stream, xx);// 序列化
-        stream.Seek(0, SeekOrigin.Begin);
-        var yy = serializer.Deserialize(stream) as List<object[]>;// 反序列化
-        Console.WriteLine(yy[0][1]);
-    }
-}
-```
 ### XBinarySerializer
 需要提供type[]，用于初始化。例子： 
 ```c#
@@ -35,8 +18,23 @@ using XBinarySerializer = XSerialize.XBinarySerializer;
     }
 }
 ```
-
-
+### XBinarySerializer2
+保存了类型信息，使用了`Type.GetType(AssemblyQualifiedName);`使用方便。例子： 
+```c#
+using XBinarySerializer = XSerialize.XBinarySerializer2;
+{
+    List<object[]> xx = new List<object[]>() { new object[] { 0, 1 }, new object[] { 2, 3 } };
+    xx[0][1] = xx;
+    var serializer = new XBinarySerializer();// 初始化
+    using (var stream = new MemoryStream())
+    {
+        serializer.Serialize(stream, xx);// 序列化
+        stream.Seek(0, SeekOrigin.Begin);
+        var yy = serializer.Deserialize(stream) as List<object[]>;// 反序列化
+        Console.WriteLine(yy[0][1]);
+    }
+}
+```
 ## Xml
 限制：
 1. 不支持多态，传入对象类型和定义类型需要相同。【不能使用接口，虚类】

@@ -8,7 +8,9 @@ using System.Diagnostics;
 
 /**
  * 二进制序列化工具
- * 1. 需要提供type[]参数
+ * 1. 需要提供type[]参数，会预处理算一个type_list_hash，把支持的Type排序，分配typeid
+ * 
+ * 格式：[type_list_hash][typeid,value][typeid,[typeid,value]*]*
  * 
  * > 参考 https://github.com/tomba/netserializer
  */

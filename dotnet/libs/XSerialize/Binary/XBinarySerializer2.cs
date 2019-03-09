@@ -8,12 +8,13 @@ using System.Diagnostics;
 /**
  * binary serialize tool 2
  * 
- * 不同的地方：
- * 1. 在文件开头处保存类型信息
- * 2. 不检查hash值，不要自己作死就好
+ * 不同的地方:不需要传入Type数组构建序列化工具类，序列化时用额外的字段存类型名AssemblyQualifiedName
+ * 
+ * 缺点：
+ * - 性能低：每次序列化的过程都要重新构建解析器
  * 
  * 格式：
- * [assemblyClassName][typeid,value][assemblyClassName][typeid,[typeid,value]*]*
+ * [AssemblyQualifiedName][typeid,value][AssemblyQualifiedName][typeid,[typeid,value]*]*
  */
 namespace XSerialize.Binary
 {
@@ -77,7 +78,7 @@ namespace XSerialize.Binary
 
         public void AddClassFieldInfos(Type type, FieldInfo[] fields)
         {
-            Debug.Assert(false);
+            Debug.Assert(false);// Aready set in GetClassFieldInfos
         }
 
         public FieldInfo[] GetClassFieldInfos(Type type)
