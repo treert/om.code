@@ -8,6 +8,7 @@
 # Linux machine (the default behavior on GitHub)
 
 *.bat eol=crlf
+*.sh eol=lf
 
 ###############################################################################
 # Set default behavior to automatically normalize line endings.

@@ -2,9 +2,9 @@
 " 基本设置"
 "==================="
 set number "显示行号"
-set autoread"文件在Vim之外修改过，自动重新读入"
+set autoread "文件在Vim之外修改过，自动重新读入"
 set nocp "使用vim而非vi"
-map 9 $"通过9跳转到行末尾,0默认跳转到行首"
+map 9 $ "通过9跳转到行末尾,0默认跳转到行首"
 map <silent>  <C-A>  gg v G "Ctrl-A 选中所有内容"
 
 "==================="
@@ -17,7 +17,7 @@ syn on "开启语法高亮功能"
 "============="
 set cindent "c/c++自动缩进"
 set smartindent
-set autoindent"参考上一行的缩进方式进行自动缩进"
+set autoindent "参考上一行的缩进方式进行自动缩进"
 filetype indent on "根据文件类型进行缩进"
 set softtabstop=4 "4 character as a tab"
 set shiftwidth=4
