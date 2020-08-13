@@ -248,7 +248,7 @@ namespace XUtils
                                 }
                             }
                         }
-                        catch (Exception e)
+                        catch (Exception)
                         {
                             if (chunk.left_try_time > 0) { chunk.left_try_time--; }
                             else if (chunk.left_try_time == 0)
