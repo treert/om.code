@@ -14,7 +14,7 @@ namespace XUtils
     /// <summary>
     /// http下载：
     /// 1. 多线程异步批量下载并保存文件
-    ///     - 支持断点续传
+    ///     - 支持断点续传，需要设置hash值才支持
     ///     - 在提供size和hash时，提供校验功能。
     /// </summary>
     public class XHttpBatchDownLoader
@@ -35,7 +35,7 @@ namespace XUtils
             public string url;
             public string path;
             public long size = -1;
-            public string hash;
+            public string hash;// 设置了hash值，才支持断点续传，不然重新下载
             public ItemStatus status = ItemStatus.NotStart;
             public string error;// 如果出错，错误原因
         }
@@ -191,7 +191,8 @@ namespace XUtils
                     if (it == null) return;
 
                     it.status = ItemStatus.Started;
-                    if (File.Exists(it.path))
+                    // 有hash值，可以校验下是否已经下载好了
+                    if (it.hash != null && File.Exists(it.path))
                     {
                         using (var fs = File.OpenRead(it.path))
                         {
@@ -213,6 +214,7 @@ namespace XUtils
         /// - 注意的点
         ///     1. .temp支持断点续传
         ///     2. 如果.temp初始大小>0，hash验证失败，会重新完整下载一次
+        ///     3. 如果没有hash校验，直接重新下载文件。
         /// - 致命错误
         ///     1. 如果下载完成，hash不对，就比较尴尬了
         ///     2. http返回的content-lenth 和 size不一致，也尴尬了
@@ -225,6 +227,16 @@ namespace XUtils
             FileStream fs = null;
             try
             {
+                if (it.hash == null)
+                {
+                    // 直接重新下载
+                    var dir = Path.GetDirectoryName(it.path);
+                    Directory.CreateDirectory(dir);
+                    fs = File.Open(it.path, FileMode.Create, FileAccess.Write);
+                    _WebDownload(it, fs, 0);
+                    return;
+                }
+
                 string tmp_file = it.path + ".temp";
                 long start_pos = 0;
                 if (File.Exists(tmp_file))
@@ -303,9 +315,13 @@ namespace XUtils
                 using (var respone = (HttpWebResponse)request.GetResponse())
                 using (var stream = respone.GetResponseStream())
                 {
-                    if (it.size > 0 && respone.ContentLength != it.size)
+                    if (respone.ContentLength >= 0)
                     {
-                        throw new Exception("size not match http content-lenth " + respone.ContentLength + " != " + it.size);
+                        var web_size = respone.ContentLength + start_pos;
+                        if (it.size > 0 && web_size != it.size)
+                        {
+                            throw new Exception("size not match http file " + web_size + " != " + it.size);
+                        }
                     }
                     stream.ReadTimeout = TimeOutWait;
 
