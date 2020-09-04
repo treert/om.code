@@ -263,7 +263,7 @@ namespace XUtils
                 if (!ok && start_pos > 0)
                 {
                     // 可能有残留，再给一次机会
-                    AddDownloadSize(fs.Length);
+                    AddDownloadSize(-fs.Length);
                     _WebDownload(it, fs, 0);
                     ok = CheckFileOk(fs, hash_func, it);
                 }
