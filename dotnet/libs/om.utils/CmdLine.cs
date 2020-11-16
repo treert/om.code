@@ -19,7 +19,9 @@
     {
         [Option("",tip = "Args is a int")]
         public int num;
+        [Option("help")]
         public bool help;
+        [Option("val")]
         public TestVal val;
         [Option("message",alias = "m", required = true, tip = "Test option message")]
         public string Message { get; set; }
@@ -205,6 +207,7 @@ namespace om.utils
 
         public static bool MatchOptionPrefix(this string str)
         {
+            if (str == "-") return true;// fix bug
             if(str?.Length > 1 && str[0] == '-')
             {
                 char c = str[1];
@@ -375,9 +378,10 @@ namespace _Internal.CmdLine
             if (option == null)
             {
                 // 应该只有field会走到这儿来
-                name = member.Name.ToLower();
-                if (name.StartsWith("m_")) name = name.Substring(2);
-                name = name.Trim('_').Replace('_', '-');
+                throw new Exception("should not happend");
+                //name = member.Name.ToLower();
+                //if (name.StartsWith("m_")) name = name.Substring(2);
+                //name = name.Trim('_').Replace('_', '-');
             }
             else
             {
@@ -465,8 +469,9 @@ namespace _Internal.CmdLine
         void InitOptions(Type type)
         {
             m_options = new Dictionary<string, OptionParser>();
-            foreach (var field in type.GetFields())
+            foreach (var field in type.GetFields(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance))
             {
+                if (field.GetCustomAttribute<OptionAttribute>() == null) continue;
                 var option = new OptionParser(field);
                 m_options.Add(option.name, option);
                 if (option.alias != null)
@@ -474,7 +479,7 @@ namespace _Internal.CmdLine
                     m_options.Add(option.alias, option);
                 }
             }
-            foreach (var property in type.GetProperties())
+            foreach (var property in type.GetProperties(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance))
             {
                 if (property.GetCustomAttribute<OptionAttribute>() != null)
                 {
