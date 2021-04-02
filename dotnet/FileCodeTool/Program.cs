@@ -8,7 +8,7 @@ namespace FileCodeTool
 {
     class WorkCmd : CmdLine.ICmd
     {
-        [Option("file_filter",alias = "f", required = false, tip = "select file by suffix")]
+        [Option("file_filter",alias = "f", required = true, tip = "select file by suffix")]
         List<string> file_filter = new List<string>();
         [Option("dir_filter",alias = "d", required = false, tip = "ignore dir by prefix")]
         List<string> dir_filter = new List<string>();
