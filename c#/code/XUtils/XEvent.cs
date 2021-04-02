@@ -26,7 +26,7 @@ namespace XUtils
     {
         protected XPoolEvent() { }
         private static Stack<T> _pool = new Stack<T>(100);
-        public static T New()
+        public static T Get()
         {
             if (_pool.Count > 0)
             {
@@ -38,7 +38,7 @@ namespace XUtils
             }
         }
 
-        public static void Delete(T obj)
+        public static void Recycle(T obj)
         {
             _pool.Push(obj);
         }
@@ -46,7 +46,7 @@ namespace XUtils
         public void FireTo(IEventReceiveObject receive_obj)
         {
             receive_obj.OnGetEvent(this);
-            Delete(this as T);
+            Recycle(this as T);
         }
     }
 

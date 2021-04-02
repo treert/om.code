@@ -51,6 +51,7 @@
     <Compile Include="XEvent.cs" />
     <Compile Include="XHttpBatchDownloader.cs" />
     <Compile Include="XHttpDownLoader.cs" />
+    <Compile Include="XLibTool.cs" />
     <Compile Include="XPool.cs" />
     <Compile Include="XSingleton.cs" />
   </ItemGroup>

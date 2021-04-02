@@ -12,6 +12,7 @@ using XBinarySerializer2 = XSerialize.XBinarySerializer2;
 using XXmlSerializer = XSerialize.XXmlSerializer;
 using XXmlDump = XSerialize.XXmlDump;
 using System.Diagnostics;
+using System.Reflection;
 
 class Program
 {
@@ -82,90 +83,104 @@ class Program
 
     static void Main(string[] args)
     {
-        TestHttpDownLoader();
+        Console.WriteLine($"Assembly.FullName = {Assembly.GetCallingAssembly().FullName}");
+        Console.WriteLine("press any key to start test");
+        //Console.ReadKey();
+        XLibTool.singleton.Init("test");
+
+        //TestHttpDownLoader();
+        //TestXEvent();
+        TestXSerialize();
+
+    }
+
+    static void TestXEvent()
+    {
+        Console.WriteLine("test singleton");
+        XSignalOne.RegisterHandle(Test);
+        XSignalOne.TriggerAll();
+    }
+
+    static void TestXSerialize()
+    {
         {
-            //Console.WriteLine("test singleton");
-            //XSignalOne.RegisterHandle(Test);
-            //XSignalOne.TriggerAll();
+            List<object[]> xx = new List<object[]>() { new object[] { 0, 1 }, new object[] { 2, 3 } };
+            xx[0][1] = xx;
+            var serializer = new XBinarySerializer(xx.GetType());
+            using (var stream = new MemoryStream())
+            {
+                serializer.Serialize(stream, xx);
+                stream.Seek(0, SeekOrigin.Begin);
+                var yy = serializer.Deserialize(stream) as List<object[]>;
+                Console.WriteLine(yy[0][1]);
+            }
+            Console.WriteLine(typeof(EnumXX).IsValueType);
+            Console.WriteLine(typeof(object).IsPrimitive);
+            Console.WriteLine(typeof(object).IsValueType);
+            var arr = Array.CreateInstance(typeof(int), 0, 0);
+            arr = new int[0, 0];
+            Console.WriteLine("{0}, {1}", arr.GetLowerBound(0), arr.GetUpperBound(1));
+            Console.WriteLine(arr.GetType().FullName);
         }
-        //{
-        //    List<object[]> xx = new List<object[]>() { new object[] { 0, 1 }, new object[] { 2, 3 } };
-        //    xx[0][1] = xx;
-        //    var serializer = new XBinarySerializer(xx.GetType());
-        //    using (var stream = new MemoryStream())
-        //    {
-        //        serializer.Serialize(stream, xx);
-        //        stream.Seek(0, SeekOrigin.Begin);
-        //        var yy = serializer.Deserialize(stream) as List<object[]>;
-        //        Console.WriteLine(yy[0][1]);
-        //    }
-        //    Console.WriteLine(typeof(EnumXX).IsValueType);
-        //    Console.WriteLine(typeof(object).IsPrimitive);
-        //    Console.WriteLine(typeof(object).IsValueType);
-        //    var arr = Array.CreateInstance(typeof(int), 0, 0);
-        //    arr = new int[0, 0];
-        //    Console.WriteLine("{0}, {1}", arr.GetLowerBound(0), arr.GetUpperBound(1));
-        //    Console.WriteLine(arr.GetType().FullName);
-        //}
-        //{
-        //    List<object[]> xx = new List<object[]>() { new object[] { 0, 1 }, new object[] { 2, 3 } };
-        //    xx[0][1] = xx;
-        //    var serializer = new XBinarySerializer2();
-        //    using (var stream = new MemoryStream())
-        //    {
-        //        serializer.Serialize(stream, xx);
-        //        serializer.Serialize(stream, null);
-        //        stream.Seek(0, SeekOrigin.Begin);
-        //        var yy = serializer.Deserialize(stream) as List<object[]>;
-        //        Console.WriteLine(yy[0][1]);
-        //    }
-        //    Console.WriteLine(typeof(EnumXX).IsValueType);
-        //    Console.WriteLine(typeof(object).IsPrimitive);
-        //    Console.WriteLine(typeof(object).IsValueType);
-        //    var arr = Array.CreateInstance(typeof(int), 0, 0);
-        //    arr = new int[0, 0];
-        //    Console.WriteLine("{0}, {1}", arr.GetLowerBound(0), arr.GetUpperBound(1));
-        //    Console.WriteLine(arr.GetType().FullName);
-        //}
-        //{
-        //    XXmlSerializer serializer = new XXmlSerializer();
+        {
+            List<object[]> xx = new List<object[]>() { new object[] { 0, 1 }, new object[] { 2, 3 } };
+            xx[0][1] = xx;
+            var serializer = new XBinarySerializer2();
+            using (var stream = new MemoryStream())
+            {
+                serializer.Serialize(stream, xx);
+                serializer.Serialize(stream, null);
+                stream.Seek(0, SeekOrigin.Begin);
+                var yy = serializer.Deserialize(stream) as List<object[]>;
+                Console.WriteLine(yy[0][1]);
+            }
+            Console.WriteLine(typeof(EnumXX).IsValueType);
+            Console.WriteLine(typeof(object).IsPrimitive);
+            Console.WriteLine(typeof(object).IsValueType);
+            var arr = Array.CreateInstance(typeof(int), 0, 0);
+            arr = new int[0, 0];
+            Console.WriteLine("{0}, {1}", arr.GetLowerBound(0), arr.GetUpperBound(1));
+            Console.WriteLine(arr.GetType().FullName);
+        }
+        {
+            XXmlSerializer serializer = new XXmlSerializer();
 
-        //    Action<object> test_func = (object obj) =>
-        //    {
-        //        Type type;
-        //        if (obj == null)
-        //            type = typeof(object);
-        //        else
-        //            type = obj.GetType();
-        //        string xx = serializer.SerializeToString(obj);
-        //        Console.WriteLine(xx);
-        //        object yy = serializer.DeserializeFromString(xx, type);
-        //        Console.WriteLine(yy);
-        //    };
+            Action<object> test_func = (object obj) =>
+            {
+                Type type;
+                if (obj == null)
+                    type = typeof(object);
+                else
+                    type = obj.GetType();
+                string xx = serializer.SerializeToString(obj);
+                Console.WriteLine(xx);
+                object yy = serializer.DeserializeFromString(xx, type);
+                Console.WriteLine(yy);
+            };
 
-        //    DateTime time = DateTime.Now;
-        //    DateTime utc = DateTime.UtcNow;
-        //    object x = (byte)2;
-        //    byte y = (byte)x;
-        //    test_func(null);
-        //    test_func(1);
-        //    test_func(EnumXX.A);
-        //    test_func((sbyte)-2);
-        //    test_func((long)1123456789123456789);
-        //    test_func(123456789123456789123456789m);
-        //    test_func(new TestXmlSerializer());
-        //    test_func(new TestXmlSerializer2());
-        //}
-        //{
-        //    XXmlDump serializer = new XXmlDump();
-        //    Action<object> test_dump = (object obj) =>
-        //    {
-        //        string xx = serializer.Dump(obj);
-        //        Console.WriteLine(xx);
-        //    };
-        //    test_dump(typeof(int[]));
-        //    test_dump(Encoding.UTF8);
-        //}
+            DateTime time = DateTime.Now;
+            DateTime utc = DateTime.UtcNow;
+            object x = (byte)2;
+            byte y = (byte)x;
+            test_func(null);
+            test_func(1);
+            test_func(EnumXX.A);
+            test_func((sbyte)-2);
+            test_func((long)1123456789123456789);
+            test_func(123456789123456789123456789m);
+            test_func(new TestXmlSerializer());
+            test_func(new TestXmlSerializer2());
+        }
+        {
+            XXmlDump serializer = new XXmlDump();
+            Action<object> test_dump = (object obj) =>
+            {
+                string xx = serializer.Dump(obj);
+                Console.WriteLine(xx);
+            };
+            test_dump(typeof(int[]));
+            test_dump(Encoding.UTF8);
+        }
     }
 
     static void TestHttpDownLoader()
@@ -225,7 +240,6 @@ class Program
     static void Test(object[] args)
     {
         Test1.singleton.OnGetEvent(new XEventOne());
-        XEventTwo.New().FireTo(Test1.singleton);
+        XEventTwo.Get().FireTo(Test1.singleton);
     }
 }
-

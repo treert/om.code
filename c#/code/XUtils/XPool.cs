@@ -17,7 +17,7 @@ namespace XUtils
     {
         private static Stack<T> _pool = new Stack<T>(100);
         private static int _new_count = 0;
-        public static T New()
+        public static T Get()
         {
             if(_pool.Count > 0)
             {
@@ -30,7 +30,7 @@ namespace XUtils
             }
         }
 
-        public static void Delete(T obj)
+        public static void Recycle(T obj)
         {
             _pool.Push(obj);
         }
