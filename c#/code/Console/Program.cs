@@ -83,15 +83,29 @@ class Program
 
     static void Main(string[] args)
     {
+        int a = 1;
+        while (a == 1) { };
         Console.WriteLine($"Assembly.FullName = {Assembly.GetCallingAssembly().FullName}");
         Console.WriteLine("press any key to start test");
         //Console.ReadKey();
         XLibTool.singleton.Init("test");
 
-        //TestHttpDownLoader();
-        //TestXEvent();
+        //var a22 = Assembly.LoadFrom("XSerialize.dll");
+        //var a222 = Assembly.LoadFrom(Path.GetFullPath("XSerialize.dll"));
+
         TestXSerialize();
 
+        var bytes = File.ReadAllBytes("test/XSerialize.dll");
+        var a3 = Assembly.LoadFrom("test/XSerialize.dll");
+        var a33 = Assembly.LoadFrom("test/XSerialize.dll");
+        var a4 = Assembly.Load(bytes);
+        var a5 = Assembly.Load(bytes);
+
+        var a1 = Assembly.Load("XSerialize");
+        var a2 = Assembly.Load("XSerialize");
+
+        //TestHttpDownLoader();
+        //TestXEvent();
     }
 
     static void TestXEvent()
