@@ -122,5 +122,9 @@ namespace FileEncode
 
         private List<ItemData> _file_info_list = new List<ItemData>();
 
+        private void button3_Click(object sender, EventArgs e)
+        {
+            WorkModel.singleton.ConvertToUtf8(true);
+        }
     }
 }

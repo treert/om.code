@@ -40,13 +40,13 @@ namespace FileEncode
             }
         }
 
-        public void ConvertToUtf8()
+        public void ConvertToUtf8(bool bom = false)
         {
             if (CheckCanWork())
             {
                 _work_thread = new Thread(new ParameterizedThreadStart(_ConvertTo));
                 _work_thread.IsBackground = true;
-                _work_thread.Start(new UTF8Encoding(true,true));
+                _work_thread.Start(new UTF8Encoding(bom, true));
             }
         }
 
@@ -211,7 +211,7 @@ namespace FileEncode
     }
 
     class Utils{
-
+        
         static Dictionary<Encoding, int[]> s_bom_map = new Dictionary<Encoding, int[]>(){
                 {new UTF8Encoding(true,true), new int[]{0xEF,0xBB,0xBF}},// utf-8-bom
                 {new UnicodeEncoding(true,true,true), new int[]{0xEF,0xFF}},// utf-16-big
@@ -223,20 +223,28 @@ namespace FileEncode
         static Dictionary<Encoding, string> s_encoding_name_map = new Dictionary<Encoding, string>(){
                 {new UTF8Encoding(false,true), "utf-8"},// utf-8
                 {new UTF8Encoding(true,true), "utf-8-bom"},// utf-8-bom
-                {new UnicodeEncoding(true,true,true), "utf-16-big"},// utf-16-big
-                {new UnicodeEncoding(false,true,true), "utf-16-small"},// utf-16-small
-                {new UTF32Encoding(true, true, true), "utf-32-big"}, // utf-32-big
-                {new UTF32Encoding(false, true, true), "utf-32-small"}, 
+                {new UnicodeEncoding(true,true,true), "utf-16BE"},// utf-16-big
+                {new UnicodeEncoding(false,true,true), "utf-16LE"},// utf-16-small
+                {new UTF32Encoding(true, true, true), "utf-32BE"}, // utf-32-big
+                {new UTF32Encoding(false, true, true), "utf-32LE"}, 
             };
 
+        /// <summary>
+        /// 判断文件编码。
+        /// 一些参考资料：
+        /// 1. https://blog.lindexi.com/post/C-判断文件编码.html 
+        /// 2. https://gist.github.com/neesenk/956765
+        /// </summary>
+        /// <param name="filename"></param>
+        /// <returns></returns>
         public static System.Text.Encoding GetFileEncodeType(string filename)
         {
             FileInfo fi = new FileInfo(filename);
             if(!fi.Exists)
                 throw new Exception("不存在");
 
-            if(fi.Length > 1024*1024*32)// 32M
-                throw new NotSupportedException(">32M");
+            if(fi.Length > 1024*1024*512)// 512M
+                throw new NotSupportedException(">512M");
 
             //if(fi.Length < 4) // to short
             //    throw new NotSupportedException("<4B");
@@ -270,23 +278,23 @@ namespace FileEncode
                 }
             }
 
-            // wtf defaut or utf-8
-            try
+            // bom 判断不出来。用常见的编码按个尝试，不抛异常就是它了
+            var data = File.ReadAllBytes(filename);
+            List<Encoding> codes = new List<Encoding>()
             {
-                var encoding = new UTF8Encoding(false,true);
-                File.ReadAllText(filename, encoding);
-                return encoding;
-            }
-            catch { }
-
-            try
+                new UTF8Encoding(false,true),
+                Encoding.GetEncoding("gbk", EncoderFallback.ExceptionFallback, DecoderFallback.ExceptionFallback),
+            };
+            foreach(var encoding in codes)
             {
-                var encoding = System.Text.Encoding.Default;
-                File.ReadAllText(filename, encoding);
-                return encoding;
+                try
+                {
+                    encoding.GetCharCount(data);
+                    return encoding;
+                }
+                catch(Exception e){ }
             }
-            catch { }
-
+            //return Encoding.ASCII;
             throw new Exception("Unkown");
         }
 
