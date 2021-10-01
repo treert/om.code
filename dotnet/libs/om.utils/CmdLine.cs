@@ -887,11 +887,10 @@ namespace _Internal.CmdLine
 
         public override object Parse(MyItor<string> itor, Type type)
         {
-            if (itor.HasValue && itor.Current.MatchOptionPrefix() == false)
+            if (itor.HasValue && bool.TryParse(itor.Current, out var b))
             {
-                var obj = Parse(itor.Current, type);
                 itor.MoveNext();
-                return obj;
+                return b;
             }
             return true;// default
         }
