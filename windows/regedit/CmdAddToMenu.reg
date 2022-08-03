@@ -1,0 +1,57 @@
+Windows Registry Editor Version 5.00
+
+; Run CMD
+[HKEY_CLASSES_ROOT\Directory\shell\MyCmd]
+@="Run CMD"
+"Extended"=-
+"Icon"="cmd.exe,0"
+"NoWorkingDirectory"=""
+
+[HKEY_CLASSES_ROOT\Directory\shell\MyCmd\command]
+@="cmd.exe /s /k pushd \"%1\""
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\MyCmd]
+@="Run CMD"
+"Extended"=-
+"Icon"="cmd.exe,0"
+"NoWorkingDirectory"=""
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\MyCmd\command]
+@="cmd.exe /s /k pushd \"%V\""
+
+[HKEY_CLASSES_ROOT\Drive\shell\MyCmd]
+@="Run CMD"
+"Extended"=-
+"Icon"="cmd.exe,0"
+"NoWorkingDirectory"=""
+
+[HKEY_CLASSES_ROOT\Drive\shell\MyCmd\command]
+@="cmd.exe /s /k pushd \"%V\""
+
+; Run CMD As Admin https://github.com/DKCTC/windows-terminal-admin-shortcuts-registry/blob/main/admin-cmd-prompt-combined.reg
+[HKEY_CLASSES_ROOT\Directory\shell\MyCmdAdmin]
+@="Run CMD As Admin"
+"Extended"=""
+"Icon"="cmd.exe,0"
+"NoWorkingDirectory"=""
+
+[HKEY_CLASSES_ROOT\Directory\shell\MyCmdAdmin\command]
+@="powershell -WindowStyle Hidden \"start cmd \\\"/k cd /d %1\\\" -v runAs\""
+`
+[HKEY_CLASSES_ROOT\Directory\Background\shell\MyCmdAdmin]
+@="Run CMD As Admin"
+"Extended"=""
+"Icon"="cmd.exe,0"
+"NoWorkingDirectory"=""
+
+[HKEY_CLASSES_ROOT\Directory\Background\shell\MyCmdAdmin\command]
+@="powershell -WindowStyle Hidden \"start cmd \\\"/k cd /d %V\\\" -v runAs\""
+
+[HKEY_CLASSES_ROOT\Drive\shell\MyCmdAdmin]
+@="Run CMD As Admin"
+"Extended"=""
+"Icon"="cmd.exe,0"
+"NoWorkingDirectory"=""
+
+[HKEY_CLASSES_ROOT\Drive\shell\MyCmdAdmin\command]
+@="powershell -WindowStyle Hidden \"start cmd \\\"/k cd /d %V\\\" -v runAs\""

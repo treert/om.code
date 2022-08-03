@@ -1,0 +1,9 @@
+Windows Registry Editor Version 5.00
+
+[-HKEY_CLASSES_ROOT\Directory\shell\MyCmd]
+[-HKEY_CLASSES_ROOT\Directory\Background\shell\MyCmd]
+[-HKEY_CLASSES_ROOT\Drive\shell\MyCmd]
+
+[-HKEY_CLASSES_ROOT\Directory\shell\MyCmdAdmin]
+[-HKEY_CLASSES_ROOT\Directory\Background\shell\MyCmdAdmin]
+[-HKEY_CLASSES_ROOT\Drive\shell\MyCmdAdmin]
