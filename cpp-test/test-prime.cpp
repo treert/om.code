@@ -1,5 +1,7 @@
 #include<iostream>
 #include<cmath>
+#include<cstdio>
+#include<vector>
 
 static int helper_IsPrime(int candidate)
 {
@@ -38,28 +40,39 @@ bool test_num(int kk){
     return true;
 }
 
-int main(){
-    for (int kk = 0; kk < 256; kk+=2){
-        if(!test_num(kk)){
-            cout << kk << " : " << test_num(kk) << std::endl;
+void GenPrime(){
+    std::vector<int> primes;
+    for(int i = 1; i <= 30; i++){
+        int num = 1<<i;
+        int k = num*1.23;
+        k |= 1;
+        for(; k < INT32_MAX; k += 2){
+            if((k-1)% 101 != 0 && helper_IsPrime(k)){
+                // cout << k << ',';
+                primes.push_back(k);
+                break;
+            }
         }
     }
-    // for(int i = 1; i <= 30; i++){
-    //     int num = 1<<i;
-    //     cout << num << ": ";
-    //     for(int k = 0; k < 7; k++){
-    //         int pack = (k<<5) + i;
-    //         int pp = (((1<<(pack&0b1'1111)) + ((pack>>5)))|1);
-    //         for (int kk = 1; kk < 101; kk+=2){
-    //             pp = num + kk;
-    //             if(helper_IsPrime(pp)){
-    //                 cout << pp << " +" << (kk) << ",";
-    //                 goto l_nextone;
-    //             }
-    //         }
-
-    //     }
-    //     l_nextone:
-    //     cout << std::endl;
+    // cout << primes.size() << std::endl;
+    // for(uint32_t p:primes){
+    //     printf("%u,",p);
     // }
+    // cout << '\n';
+    // for(uint32_t p:primes){
+    //     uint64_t m = (UINT64_MAX/p)+1;
+    //     printf("%lluull,",m);
+    // }
+
+    for(uint32_t p:primes){
+        uint64_t m = (UINT64_MAX/p)+1;
+        printf("{%u,%lluull},",p, m);
+    }
+
+    cout << '\n';
+}
+
+int main(){
+    GenPrime();
+    return 0;
 }
