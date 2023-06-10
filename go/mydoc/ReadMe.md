@@ -1,3 +1,4 @@
+## 使用 workspace and module 来管理代码
 ```sh
 # 新建工作区目录 workspace
 mkdir go
@@ -22,3 +23,10 @@ go mod init myutils
 go work use ./myutils
 ```
 > https://zhuanlan.zhihu.com/p/591522723
+
+## go install 
+参数是目录。需要里面的包是个 main package, has main 函数。
+```sh
+# windows: install mypkg.exe in $GoPath/bin
+go install mypkg
+```
