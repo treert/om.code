@@ -2,3 +2,4 @@
 Console.WriteLine("Hello, World!");
 
 MyTest.SIMD.Run();
+MyTest.TestSyntax.Run();
