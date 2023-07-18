@@ -13,11 +13,13 @@ using System.Threading.Channels;
 namespace MyTest;
 
 public class TestChannel{
-    class Item{
+    record Item{
         public int i=1;
         public string s = "1234";
     }
-    public static void Run(){
+    public static async Task Run(){
+        Console.WriteLine();
+        Console.WriteLine("TestChannel");
         {
             var ch = Channel.CreateUnbounded<Item>();
             // 生产
@@ -32,6 +34,7 @@ public class TestChannel{
                 });
                 Thread.Sleep(10);
                 ch.Writer.Complete();
+                Console.WriteLine("complete channel");
             });
 
             //消费数据
@@ -44,6 +47,10 @@ public class TestChannel{
                     }
                 }
             });
+            await producer;
+            await consumer;
+            // producer.Wait();
+            // consumer.Wait();
             Console.WriteLine("finish test unbound channel");
         }
     }
