@@ -2,12 +2,34 @@ using System.Diagnostics;
 
 namespace MyTest;
 
+/* tips
+1. do not use ref and out in Task main function.
+2. compute-bound method should exposed as sync function, I/O-bound method should exposed as async function.
+    - https://learn.microsoft.com/en-us/dotnet/standard/asynchronous-programming-patterns/implementing-the-task-based-asynchronous-pattern#workloads
+    
+*/
+
+/*
+1. Task.Start 一般不用调用的。
+    - 只有通过构造函数创建的Task需要调用 Start 进入 hot state
+    - 函数返回的的 task 应该都已经Start了。
+    - https://learn.microsoft.com/en-us/dotnet/standard/asynchronous-programming-patterns/task-based-asynchronous-pattern-tap#task-status
+2. Task.IsCompleted 包含三种状态：RanToCompletion,Faulted,Canceled。失败和放弃都算完成了。
+    - Any continue code will run
+    - Any await or read Result will success or throw exception
+
+1. Cannot await in the body of a lock statement. 编译报错
+    - SemaphoreSlim.WaitAsync() and SemaphoreSlim.Release() 可以实现lock await 的功能。【不推荐这么用】
+    - https://www.jenx.si/2019/08/23/c-locks-and-async-tasks/
+*/
+
 /*
 > 非常有用的官方文档，比如讲了 await void 的问题 https://learn.microsoft.com/en-us/dotnet/csharp/asynchronous-programming/async-scenarios#important-info-and-advice
 
 补充阅读
-- Task.Delay vs Thread.Sleep
-    - Thread.Sleep 会阻塞线程。Task.Delay 不一定，只是延后。
+- Task.Delay vs Thread.Sleep 见 TestBlock()
+    - await Task.Delay 不阻塞线程。
+    - Thread.Sleep 和 Task.Delay.Await 会阻塞线程，线程池资源-1。
 - await Task.Delay() vs. Task.Delay().Wait()
     - 官方推荐使用 await 关键字. await 不阻塞当前线程。
     - 最佳答案 https://stackoverflow.com/questions/26798845/await-task-delay-vs-task-delay-wait
@@ -38,9 +60,13 @@ class TestTask{
 
         TestDeadlock();
 
-        TestAny().Wait();
+        TestAny();
 
         TestCancelTask();
+
+        TestBlock();
+
+        TestUpValue();
 
         try{
             TriggerException().Wait();
@@ -48,6 +74,61 @@ class TestTask{
             Console.WriteLine($"catch exception in task msg={e.InnerException?.Message}");
         }
 
+    }
+
+    private static void TestUpValue()
+    {
+        using var log = new LogCall();
+        Task[] tts = new Task[3];
+        for (int i = 0; i < tts.Length; i++){
+            int k = i;
+            tts[i] = Task.Run(()=>{
+                Console.WriteLine($"thread_id={Thread.CurrentThread.ManagedThreadId} i={i} k={k}");
+            });
+        }
+        Task.WaitAll(tts);
+    }
+
+    private static void TestBlock()
+    {
+        using var log = new LogCall();
+        Thread? h1 = null;
+        var t1 = Task.Run(async ()=>{
+            await Task.Yield();
+            int id1 = Thread.CurrentThread.ManagedThreadId;
+            Interlocked.Exchange(ref h1, Thread.CurrentThread);
+            await Task.Delay(100);
+            int id2 = Thread.CurrentThread.ManagedThreadId;
+            Console.WriteLine($"finish t1 {id1} {id2}");
+        });
+
+        Thread? h2 = null;
+        var t2 = Task.Run(async ()=>{
+            int id1 = Thread.CurrentThread.ManagedThreadId;
+            await Task.Yield();
+            Interlocked.Exchange(ref h2, Thread.CurrentThread);
+            Task.Delay(100).Wait();
+            int id2 = Thread.CurrentThread.ManagedThreadId;
+            Console.WriteLine($"finish t2 {id1} {id2}");
+        });
+
+        Thread? h3 = null;
+        var t3 = Task.Run(async ()=>{
+            int id1 = Thread.CurrentThread.ManagedThreadId;
+            await Task.Yield();
+            Interlocked.Exchange(ref h3, Thread.CurrentThread);
+            Thread.Sleep(100);
+            int id2 = Thread.CurrentThread.ManagedThreadId;
+            Console.WriteLine($"finish t3 {id1} {id2}");
+        });
+
+        Thread.Sleep(10);
+        // thread status h1=Background h2=Background, WaitSleepJoin h3=Background, WaitSleepJoin
+        Console.WriteLine($"thread status h1={h1?.ThreadState} h2={h2?.ThreadState} h3={h3?.ThreadState}");
+        Console.WriteLine($"thread status t1={t1.Status} t2={t2.Status} t2={t2.Status}");
+        Task.WaitAll(t1,t2,t3);
+        Console.WriteLine($"thread status h1={h1?.ThreadState} h2={h2?.ThreadState} h3={h3?.ThreadState}");
+        Console.WriteLine($"thread status t1={t1.Status} t2={t2.Status} t2={t2.Status}");
     }
 
     /*
@@ -61,11 +142,14 @@ class TestTask{
     */
     static async Task TriggerException()
     {
+        using var log = new LogCall("TriggerException");// must pass name explict
+        await Task.Delay(10);
         Console.WriteLine("before exception");
         throw new Exception("trigger exception in task");
         #pragma warning disable 0162
         await Task.Delay(10);
-        Console.WriteLine("after exception");
+        Console.ForegroundColor = ConsoleColor.Red;
+        Console.WriteLine("after exception");// will not run
         #pragma warning restore
     }
 
@@ -75,7 +159,8 @@ class TestTask{
     You should await that task again, even though you know it's finished running.
     That's how you retrieve its result, or ensure that the exception causing it to fault gets thrown.
     */
-    static async Task TestAny(){
+    static void TestAny(){
+        using var _ = new LogCall();
         var task1 = Task.Run(async ()=>{
             await Task.Delay(Random.Shared.Next(1,10));
             return 1;
@@ -84,17 +169,20 @@ class TestTask{
             Task.Delay(Random.Shared.Next(1,10)).Wait();
             return 2;
         });
-        var list = new List<Task<int>> {task1, task2};
-        while(list.Count > 0){
-            var finishedTask = await Task.WhenAny(list);
-            // 这时就可以获取结果了，官方文档有问题呀。不过官方文档建议使用 await 替代 Task.Result/Task.Wait
-            // https://learn.microsoft.com/en-us/dotnet/csharp/asynchronous-programming/async-scenarios#important-info-and-advice
-            Console.WriteLine($"finish {finishedTask.Result}");
-            var ret = await finishedTask;
-            Console.WriteLine($"finish wait {ret}");
+        var tt = Task.Run(async ()=>{
+            var list = new List<Task<int>> {task1, task2};
+            while(list.Count > 0){
+                var finishedTask = await Task.WhenAny(list);
+                // 这时就可以获取结果了，官方文档有问题呀。不过官方文档建议使用 await 替代 Task.Result/Task.Wait
+                // https://learn.microsoft.com/en-us/dotnet/csharp/asynchronous-programming/async-scenarios#important-info-and-advice
+                Console.WriteLine($"finish {finishedTask.Result}");
+                var ret = await finishedTask;
+                Console.WriteLine($"finish wait {ret}");
 
-            list.Remove(finishedTask);
-        }
+                list.Remove(finishedTask);
+            }
+        });
+        tt.Wait();
     }
 
     /*
@@ -102,7 +190,7 @@ class TestTask{
         对Task的运行机制理解不够深
     */
     static void TestDeadlock(){
-        Console.WriteLine("TestDeadlock");
+        using var _ = new LogCall();
         static async Task<string> Foo()
         {
             await Task.Delay(1).ConfigureAwait(false);
@@ -122,21 +210,35 @@ class TestTask{
     }
 
     static void TestCancelTask(){
+        using var _ = new LogCall();
         var sw = new Stopwatch();
         sw.Start();
         Console.WriteLine($"TestCancelTask Start {DateTime.Now.ToString("ss.fff")}");
         using var tokenSource = new CancellationTokenSource();
         var token = tokenSource.Token;
         var t0 = Task.Run(async ()=>{
-            await Task.Delay(1000);
+            await Task.Delay(20);
             tokenSource.Cancel();
         });
         var t1 = Task.Run(async ()=>{
-            while(! token.IsCancellationRequested){
+            while(true){
+                token.ThrowIfCancellationRequested();
                 await Task.Delay(5);
             }
         });
-        Task.WaitAll(t0,t1);
+        var t2 = t1.ContinueWith((task)=>{
+            // t1 is canceled. t2 run also.
+            Console.WriteLine($"t1.Status={t1.Status}");
+        });
+        try{
+            // Task.WaitAll(t0,t2);// no exception
+            Task.WaitAll(t0,t1);// throw exception AggregateException(TaskCanceledException)
+        }
+        catch(Exception e){
+            // Task.WaitAll(t0,t1) will run this.
+            Console.WriteLine($"get exception {e.Message} inner={e.InnerException?.Message}");
+        }
+        
         Console.WriteLine($"TestCancelTask End {DateTime.Now.ToString("ss.fff")}");
         sw.Stop();
         Console.WriteLine($"TestCancelTask Cost {sw.ElapsedMilliseconds}ms");
