@@ -3,7 +3,7 @@ Console.WriteLine("Hello, World!");
 
 // MyTest.SIMD.Run();
 // MyTest.TestSyntax.Run();
-// await MyTest.TestChannel.Run();
+MyTest.TestChannel.Run();
 // MyTest.TestTask.Run();
 // MyTest.TestThread.Run();
 MyTest.TestStructLayout.Run();
