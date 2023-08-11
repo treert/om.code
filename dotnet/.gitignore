@@ -6,6 +6,10 @@
 # . 开头的目录都忽略掉
 .*/
 
+# add by om
+nuget-feed/*
+!nuget-feed/ReadMe.md
+
 # User-specific files
 *.suo
 *.user

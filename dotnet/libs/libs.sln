@@ -1,11 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.26124.0
+# Visual Studio Version 17
+VisualStudioVersion = 17.7.34003.232
 MinimumVisualStudioVersion = 15.0.26124.0
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "om.utils", "om.utils\om.utils.csproj", "{A5E83748-2034-4605-B7D5-1DBFD3D5826E}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Test", "Test\Test.csproj", "{31880FEE-6099-41D8-B4E1-511F48853EF3}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "XSerialize", "XSerialize\XSerialize.csproj", "{E080C231-4BA2-423C-8145-4C072B4E3DD9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{31880FEE-6099-41D8-B4E1-511F48853EF3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{31880FEE-6099-41D8-B4E1-511F48853EF3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{31880FEE-6099-41D8-B4E1-511F48853EF3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E080C231-4BA2-423C-8145-4C072B4E3DD9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E080C231-4BA2-423C-8145-4C072B4E3DD9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E080C231-4BA2-423C-8145-4C072B4E3DD9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E080C231-4BA2-423C-8145-4C072B4E3DD9}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
