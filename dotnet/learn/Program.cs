@@ -8,4 +8,5 @@ Console.WriteLine($"Hello, World! {System.Environment.CurrentDirectory}");
 // MyTest.TestThread.Run();
 // MyTest.TestStructLayout.Run();
 // MyTest.TestDllImport.Run();
-MyTest.TestLog.Run();
+// MyTest.TestLog.Run();
+MyTest.JsonTest.Run();
