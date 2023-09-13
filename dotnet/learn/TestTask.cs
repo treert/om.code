@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace MyTest;
 
@@ -11,7 +12,7 @@ https://devblogs.microsoft.com/dotnet/configureawait-faq/
 1. do not use ref and out in Task main function.
 2. compute-bound method should exposed as sync function, I/O-bound method should exposed as async function.
     - https://learn.microsoft.com/en-us/dotnet/standard/asynchronous-programming-patterns/implementing-the-task-based-asynchronous-pattern#workloads
-    
+3. MyAwaitable 的实现有些诡异呀。OnComplete 的调用条件和想象的不一样。YieldAwaitable 也是一个样，这个名字应该叫做 DoWorkToComplete
 */
 
 /*
@@ -49,7 +50,7 @@ https://devblogs.microsoft.com/dotnet/configureawait-faq/
             - Can not await it. So caller may exit before it has completed, this maybe painful.
             - Any unhandled exceptions will terminate your process (ouch!) 【异常不会抛给父级】
     - async void should only be used for event handlers. 【出自官方文档】
-- Task.Yield() 作用类似与降低优先级。它反馈的任务已经是完成状态了。假设一个单线程调度器每次把回调压到最后面执行，那它就可以降低后续代码的优先级了。
+- Task.Yield() 作用类似与降低优先级。IsCompleted = false, 这样一定会调用一下 OnComplete。假设一个单线程调度器每次把回调压到最后面执行，那它就可以降低后续代码的优先级了。
     - https://blog.csdn.net/gqk01/article/details/131180845
 
 
@@ -87,14 +88,60 @@ class TestTask
 
         // TestDeadlock();
 
+        TestCustomAwaitable();
+
     }
+
+    class MyAwaitable : INotifyCompletion
+    {
+        public void OnCompleted(Action continuation)
+        {
+            // 如果await 时，IsComplete = True 这儿是不会调用的。【总感觉有什么不对】
+            Debug.Assert(InnerIsIsCompleted == false);
+            Console.WriteLine($"MyAwaitable OnCompleted {DateTimeOffset.Now} {DateTimeOffset.Now.ToUnixTimeMilliseconds()} thread_id={Thread.CurrentThread.ManagedThreadId}");
+            Task.Run(continuation);
+        }
+
+        public MyAwaitable GetAwaiter() {
+            Console.WriteLine($"MyAwaitable GetAwaiter thread_id={Thread.CurrentThread.ManagedThreadId}");
+            return this;
+        }
+
+        public MyAwaitable(){
+            Console.WriteLine($"MyAwaitable Construct {DateTimeOffset.Now} {DateTimeOffset.Now.ToUnixTimeMilliseconds()} thread_id={Thread.CurrentThread.ManagedThreadId}");
+            m_start_ts = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+        }
+        private long m_start_ts;
+        public bool InnerIsIsCompleted => m_start_ts + 20 < DateTimeOffset.Now.ToUnixTimeMilliseconds();
+        public bool IsCompleted {
+            get{
+                var xx = InnerIsIsCompleted;
+                Console.WriteLine($"MyAwaitable IsCompleted {xx} thread_id={Thread.CurrentThread.ManagedThreadId}");
+                return xx;
+            }
+        }
+        public void GetResult() { 
+            // 经过测试，发现这一步同步卡住，直到 IsComplete == True
+            Console.WriteLine($"MyAwaitable GetResult thread_id={Thread.CurrentThread.ManagedThreadId}");
+        }
+    };
+
+    private static void TestCustomAwaitable()
+    {
+        using var log = new LogCall();
+        Task.Run(async () =>
+        {
+            var xx = new MyAwaitable();
+            await xx;
+            Console.WriteLine($"TestCustomAwaitable finish MyAwaitable.IsCompleted={xx.InnerIsIsCompleted} {DateTimeOffset.Now} {DateTimeOffset.Now.ToUnixTimeMilliseconds()} thread_id={Thread.CurrentThread.ManagedThreadId}");
+        }).Wait();
+    }
+
 
     private static void Test_ConcurrentExclusiveSchedulerPair_And_DeadLock()
     {
         using var log = new LogCall();
 
-        using var tokenSource = new CancellationTokenSource();
-        
         static async Task _Wait()
         {
             await Task.Yield();// 这个比 Task.Delay(1) 好。它是立即执行完，然后通知调度器去执行后续回调的。
@@ -105,7 +152,7 @@ class TestTask
             var t = Task.Factory.StartNew(() =>
             {
                 _Wait().Wait();
-            }, tokenSource.Token, TaskCreationOptions.None, ces.ExclusiveScheduler);
+            }, default, TaskCreationOptions.None, ces.ExclusiveScheduler);
             bool is_finish = !t.Wait(5);
             Console.WriteLine($"t is_deadlock={is_finish} {t.Status} ");
         }
@@ -115,7 +162,7 @@ class TestTask
             var t = Task.Factory.StartNew(() =>
             {
                 _Wait().Wait();
-            }, tokenSource.Token, TaskCreationOptions.None, ces.ConcurrentScheduler);
+            }, default, TaskCreationOptions.None, ces.ConcurrentScheduler);
             bool is_finish = !t.Wait(5);
             Console.WriteLine($"t is_deadlock={is_finish} {t.Status}");
         }
