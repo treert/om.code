@@ -2,6 +2,11 @@ using System.Diagnostics;
 
 namespace MyTest;
 
+/*
+https://devblogs.microsoft.com/dotnet/configureawait-faq/
+非常棒的文章，讲了ConfigureAwait相关的原理。【里面举的死锁例子不好（或者说不完整），好的例子见 TestDeadlock 】
+*/
+
 /* tips
 1. do not use ref and out in Task main function.
 2. compute-bound method should exposed as sync function, I/O-bound method should exposed as async function.
@@ -186,27 +191,20 @@ class TestTask{
     }
 
     /*
-        都说可能有 deadlock 但是没构造出例子出来。
-        对Task的运行机制理解不够深
+        这两个例子在 WPF 的 UI 线程里执行都会卡死。原因是 UI 定制的 SynchronizationContext 是单线程的。
+        这两个例子隐含的两次回调存在相互依赖。就卡死了。
     */
     static void TestDeadlock(){
         using var _ = new LogCall();
-        static async Task<string> Foo()
+        // example 1
+        async Task<string> Foo()
         {
-            await Task.Delay(1).ConfigureAwait(false);
+            await Task.Delay(1);
             return "";
         }
-        async static Task<string> Ros()
-        {
-            return await Bar();
-        }
-        async static Task<string> Bar()
-        {
-            return await Foo();
-        }
-
-        // 
-        Task.WaitAll(Enumerable.Range(0,40).Select(x => Ros()).ToArray());
+        Foo().Wait();
+        // example 2. Unhandled exception. System.InvalidOperationException: The current SynchronizationContext may not be used as a TaskScheduler.
+        // Task.Delay(1).ContinueWith((_) => { },TaskScheduler.FromCurrentSynchronizationContext()).Wait();
     }
 
     static void TestCancelTask(){
