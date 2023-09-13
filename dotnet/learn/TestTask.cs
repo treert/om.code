@@ -4,7 +4,7 @@ namespace MyTest;
 
 /*
 https://devblogs.microsoft.com/dotnet/configureawait-faq/
-非常棒的文章，讲了ConfigureAwait相关的原理。【里面举的死锁例子不好（或者说不完整），好的例子见 TestDeadlock 】
+非常棒的文章，讲了ConfigureAwait相关的原理。【里面举的死锁例子不好（或者说不完整），好的例子见 Test_ConcurrentExclusiveSchedulerPair_And_DeadLock 】
 */
 
 /* tips
@@ -49,6 +49,8 @@ https://devblogs.microsoft.com/dotnet/configureawait-faq/
             - Can not await it. So caller may exit before it has completed, this maybe painful.
             - Any unhandled exceptions will terminate your process (ouch!) 【异常不会抛给父级】
     - async void should only be used for event handlers. 【出自官方文档】
+- Task.Yield() 作用类似与降低优先级。它反馈的任务已经是完成状态了。假设一个单线程调度器每次把回调压到最后面执行，那它就可以降低后续代码的优先级了。
+    - https://blog.csdn.net/gqk01/article/details/131180845
 
 
 https://learn.microsoft.com/en-us/dotnet/csharp/asynchronous-programming/
@@ -58,12 +60,11 @@ c# 的异步机制可以理解成无栈协程。使用时，必须在函数的�
 是不推荐大规模使用么？
 
 */
-class TestTask{
+class TestTask
+{
     public static void Run()
     {
         Console.WriteLine("\nTestTask");
-
-        TestDeadlock();
 
         TestAny();
 
@@ -73,21 +74,82 @@ class TestTask{
 
         TestUpValue();
 
-        try{
+        try
+        {
             TriggerException().Wait();
-        }catch(AggregateException e){
+        }
+        catch (AggregateException e)
+        {
             Console.WriteLine($"catch exception in task msg={e.InnerException?.Message}");
         }
 
+        Test_ConcurrentExclusiveSchedulerPair_And_DeadLock();
+
+        // TestDeadlock();
+
+    }
+
+    private static void Test_ConcurrentExclusiveSchedulerPair_And_DeadLock()
+    {
+        using var log = new LogCall();
+
+        using var tokenSource = new CancellationTokenSource();
+        
+        static async Task _Wait()
+        {
+            await Task.Yield();// 这个比 Task.Delay(1) 好。它是立即执行完，然后通知调度器去执行后续回调的。
+            return;
+        };
+        {
+            var ces = new ConcurrentExclusiveSchedulerPair(TaskScheduler.Default, maxConcurrencyLevel: 1);
+            var t = Task.Factory.StartNew(() =>
+            {
+                _Wait().Wait();
+            }, tokenSource.Token, TaskCreationOptions.None, ces.ExclusiveScheduler);
+            bool is_finish = !t.Wait(5);
+            Console.WriteLine($"t is_deadlock={is_finish} {t.Status} ");
+        }
+        {
+            // 因为 maxConcurrencyLevel 是1 也会卡住，如果是 2, 就不会卡住了
+            var ces = new ConcurrentExclusiveSchedulerPair(TaskScheduler.Default, maxConcurrencyLevel: 1);
+            var t = Task.Factory.StartNew(() =>
+            {
+                _Wait().Wait();
+            }, tokenSource.Token, TaskCreationOptions.None, ces.ConcurrentScheduler);
+            bool is_finish = !t.Wait(5);
+            Console.WriteLine($"t is_deadlock={is_finish} {t.Status}");
+        }
+    }
+
+    /*
+        Test_ConcurrentExclusiveSchedulerPair_And_DeadLock 的例子更好。
+
+        这两个例子在 WPF 的 UI 线程里执行都会卡死。原因是 UI 定制的 SynchronizationContext 是单线程的。
+        这两个例子隐含的两次回调存在相互依赖。就卡死了。
+    */
+    static void TestDeadlock()
+    {
+        using var _ = new LogCall();
+        // example 1
+        async Task<string> Foo()
+        {
+            await Task.Delay(1);
+            return "";
+        }
+        Foo().Wait();
+        // example 2. Unhandled exception. System.InvalidOperationException: The current SynchronizationContext may not be used as a TaskScheduler.
+        // Task.Delay(1).ContinueWith((_) => { },TaskScheduler.FromCurrentSynchronizationContext()).Wait();
     }
 
     private static void TestUpValue()
     {
         using var log = new LogCall();
         Task[] tts = new Task[3];
-        for (int i = 0; i < tts.Length; i++){
+        for (int i = 0; i < tts.Length; i++)
+        {
             int k = i;
-            tts[i] = Task.Run(()=>{
+            tts[i] = Task.Run(() =>
+            {
                 Console.WriteLine($"thread_id={Thread.CurrentThread.ManagedThreadId} i={i} k={k}");
             });
         }
@@ -98,7 +160,8 @@ class TestTask{
     {
         using var log = new LogCall();
         Thread? h1 = null;
-        var t1 = Task.Run(async ()=>{
+        var t1 = Task.Run(async () =>
+        {
             await Task.Yield();
             int id1 = Thread.CurrentThread.ManagedThreadId;
             Interlocked.Exchange(ref h1, Thread.CurrentThread);
@@ -108,7 +171,8 @@ class TestTask{
         });
 
         Thread? h2 = null;
-        var t2 = Task.Run(async ()=>{
+        var t2 = Task.Run(async () =>
+        {
             int id1 = Thread.CurrentThread.ManagedThreadId;
             await Task.Yield();
             Interlocked.Exchange(ref h2, Thread.CurrentThread);
@@ -118,7 +182,8 @@ class TestTask{
         });
 
         Thread? h3 = null;
-        var t3 = Task.Run(async ()=>{
+        var t3 = Task.Run(async () =>
+        {
             int id1 = Thread.CurrentThread.ManagedThreadId;
             await Task.Yield();
             Interlocked.Exchange(ref h3, Thread.CurrentThread);
@@ -131,7 +196,7 @@ class TestTask{
         // thread status h1=Background h2=Background, WaitSleepJoin h3=Background, WaitSleepJoin
         Console.WriteLine($"thread status h1={h1?.ThreadState} h2={h2?.ThreadState} h3={h3?.ThreadState}");
         Console.WriteLine($"thread status t1={t1.Status} t2={t2.Status} t2={t2.Status}");
-        Task.WaitAll(t1,t2,t3);
+        Task.WaitAll(t1, t2, t3);
         Console.WriteLine($"thread status h1={h1?.ThreadState} h2={h2?.ThreadState} h3={h3?.ThreadState}");
         Console.WriteLine($"thread status t1={t1.Status} t2={t2.Status} t2={t2.Status}");
     }
@@ -151,11 +216,11 @@ class TestTask{
         await Task.Delay(10);
         Console.WriteLine("before exception");
         throw new Exception("trigger exception in task");
-        #pragma warning disable 0162
+#pragma warning disable 0162
         await Task.Delay(10);
         Console.ForegroundColor = ConsoleColor.Red;
         Console.WriteLine("after exception");// will not run
-        #pragma warning restore
+#pragma warning restore
     }
 
     /*
@@ -164,19 +229,24 @@ class TestTask{
     You should await that task again, even though you know it's finished running.
     That's how you retrieve its result, or ensure that the exception causing it to fault gets thrown.
     */
-    static void TestAny(){
+    static void TestAny()
+    {
         using var _ = new LogCall();
-        var task1 = Task.Run(async ()=>{
-            await Task.Delay(Random.Shared.Next(1,10));
+        var task1 = Task.Run(async () =>
+        {
+            await Task.Delay(Random.Shared.Next(1, 10));
             return 1;
         });
-        var task2 = Task.Run( ()=>{
-            Task.Delay(Random.Shared.Next(1,10)).Wait();
+        var task2 = Task.Run(() =>
+        {
+            Task.Delay(Random.Shared.Next(1, 10)).Wait();
             return 2;
         });
-        var tt = Task.Run(async ()=>{
-            var list = new List<Task<int>> {task1, task2};
-            while(list.Count > 0){
+        var tt = Task.Run(async () =>
+        {
+            var list = new List<Task<int>> { task1, task2 };
+            while (list.Count > 0)
+            {
                 var finishedTask = await Task.WhenAny(list);
                 // 这时就可以获取结果了，官方文档有问题呀。不过官方文档建议使用 await 替代 Task.Result/Task.Wait
                 // https://learn.microsoft.com/en-us/dotnet/csharp/asynchronous-programming/async-scenarios#important-info-and-advice
@@ -190,53 +260,43 @@ class TestTask{
         tt.Wait();
     }
 
-    /*
-        这两个例子在 WPF 的 UI 线程里执行都会卡死。原因是 UI 定制的 SynchronizationContext 是单线程的。
-        这两个例子隐含的两次回调存在相互依赖。就卡死了。
-    */
-    static void TestDeadlock(){
-        using var _ = new LogCall();
-        // example 1
-        async Task<string> Foo()
-        {
-            await Task.Delay(1);
-            return "";
-        }
-        Foo().Wait();
-        // example 2. Unhandled exception. System.InvalidOperationException: The current SynchronizationContext may not be used as a TaskScheduler.
-        // Task.Delay(1).ContinueWith((_) => { },TaskScheduler.FromCurrentSynchronizationContext()).Wait();
-    }
-
-    static void TestCancelTask(){
+    static void TestCancelTask()
+    {
         using var _ = new LogCall();
         var sw = new Stopwatch();
         sw.Start();
         Console.WriteLine($"TestCancelTask Start {DateTime.Now.ToString("ss.fff")}");
         using var tokenSource = new CancellationTokenSource();
         var token = tokenSource.Token;
-        var t0 = Task.Run(async ()=>{
+        var t0 = Task.Run(async () =>
+        {
             await Task.Delay(20);
             tokenSource.Cancel();
         });
-        var t1 = Task.Run(async ()=>{
-            while(true){
+        var t1 = Task.Run(async () =>
+        {
+            while (true)
+            {
                 token.ThrowIfCancellationRequested();
                 await Task.Delay(5);
             }
         });
-        var t2 = t1.ContinueWith((task)=>{
+        var t2 = t1.ContinueWith((task) =>
+        {
             // t1 is canceled. t2 run also.
             Console.WriteLine($"t1.Status={t1.Status}");
         });
-        try{
+        try
+        {
             // Task.WaitAll(t0,t2);// no exception
-            Task.WaitAll(t0,t1);// throw exception AggregateException(TaskCanceledException)
+            Task.WaitAll(t0, t1);// throw exception AggregateException(TaskCanceledException)
         }
-        catch(Exception e){
+        catch (Exception e)
+        {
             // Task.WaitAll(t0,t1) will run this.
             Console.WriteLine($"get exception {e.Message} inner={e.InnerException?.Message}");
         }
-        
+
         Console.WriteLine($"TestCancelTask End {DateTime.Now.ToString("ss.fff")}");
         sw.Stop();
         Console.WriteLine($"TestCancelTask Cost {sw.ElapsedMilliseconds}ms");
