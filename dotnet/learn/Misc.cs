@@ -35,7 +35,7 @@ class LogCall : IDisposable
         {
             var str = (is_start ? "Start" : "End");
             var id = Thread.CurrentThread.ManagedThreadId;
-            Console.WriteLine($"--- {m_msg} - {str} - {id} ---");
+            Console.WriteLine($"--- {m_msg} - {str} - theadid={id} ---");
         }
         Console.ResetColor();
     }

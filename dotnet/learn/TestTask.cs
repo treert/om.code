@@ -16,6 +16,14 @@ https://devblogs.microsoft.com/dotnet/configureawait-faq/
 */
 
 /*
+https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskscheduler
+有一个 Custom Task Scheduler 的例子。并且解释了一些东西，比如
+1. thread pool 的使用细节。global queue and local queue. TaskCreationOptions.LongRunning
+2. TaskScheduler.FromCurrentSynchronizationContext() 和 ContinueWith 的使用。可以确保在一个线程上。
+    - TaskScheduler.FromCurrentSynchronizationContext() 需要当前的 SynchronizationContext 能够支持。默认情况下抛异常。
+*/
+
+/*
 1. Task.Start 一般不用调用的。
     - 只有通过构造函数创建的Task需要调用 Start 进入 hot state
     - 函数返回的的 task 应该都已经Start了。
@@ -33,14 +41,10 @@ https://devblogs.microsoft.com/dotnet/configureawait-faq/
 > 非常有用的官方文档，比如讲了 await void 的问题 https://learn.microsoft.com/en-us/dotnet/csharp/asynchronous-programming/async-scenarios#important-info-and-advice
 
 补充阅读
-- Task.Delay vs Thread.Sleep 见 TestBlock()
+- await Delay vs Delay.Wait vs Thread.Sleep 见 TestBlock()
     - await Task.Delay 不阻塞线程。
-    - Thread.Sleep 和 Task.Delay.Await 会阻塞线程，线程池资源-1。
-- await Task.Delay() vs. Task.Delay().Wait()
-    - 官方推荐使用 await 关键字. await 不阻塞当前线程。
-    - 最佳答案 https://stackoverflow.com/questions/26798845/await-task-delay-vs-task-delay-wait
-    - Wait() can cause deadlock issues once you attached a UI to your async code.
-        - 也许 Task.Delay().Wait() 类似 Thread.Sleep 吧
+    - Thread.Sleep 和 Delay.Await 会阻塞线程，线程池资源-1。
+    - 补充阅读 https://stackoverflow.com/questions/26798845/await-task-delay-vs-task-delay-wait
 - async void VS async Task
     - 官方文档说了寂寞 https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/language-specification/classes#15154-evaluation-of-a-void-returning-async-function
     - 值得一看 https://learn.microsoft.com/en-us/archive/msdn-magazine/2013/march/async-await-best-practices-in-asynchronous-programming#avoid-async-void
@@ -84,12 +88,12 @@ class TestTask
             Console.WriteLine($"catch exception in task msg={e.InnerException?.Message}");
         }
 
-        Test_ConcurrentExclusiveSchedulerPair_And_DeadLock();
-
-        // TestDeadlock();
+        TestNestedTask();
 
         TestCustomAwaitable();
 
+        // TestDeadlock();
+        Test_ConcurrentExclusiveSchedulerPair_And_DeadLock();
     }
 
     class MyAwaitable : INotifyCompletion
@@ -98,30 +102,37 @@ class TestTask
         {
             // 如果await 时，IsComplete = True 这儿是不会调用的。【总感觉有什么不对】
             Debug.Assert(InnerIsIsCompleted == false);
+            // 应该在这儿触发异步工作，完成后，调用 continuation
             Console.WriteLine($"MyAwaitable OnCompleted {DateTimeOffset.Now} {DateTimeOffset.Now.ToUnixTimeMilliseconds()} thread_id={Thread.CurrentThread.ManagedThreadId}");
             Task.Run(continuation);
         }
 
-        public MyAwaitable GetAwaiter() {
+        public MyAwaitable GetAwaiter()
+        {
             Console.WriteLine($"MyAwaitable GetAwaiter thread_id={Thread.CurrentThread.ManagedThreadId}");
             return this;
         }
 
-        public MyAwaitable(){
+        public MyAwaitable()
+        {
             Console.WriteLine($"MyAwaitable Construct {DateTimeOffset.Now} {DateTimeOffset.Now.ToUnixTimeMilliseconds()} thread_id={Thread.CurrentThread.ManagedThreadId}");
             m_start_ts = DateTimeOffset.Now.ToUnixTimeMilliseconds();
         }
         private long m_start_ts;
-        public bool InnerIsIsCompleted => m_start_ts + 20 < DateTimeOffset.Now.ToUnixTimeMilliseconds();
-        public bool IsCompleted {
-            get{
+        public bool InnerIsIsCompleted => m_start_ts + 1000 < DateTimeOffset.Now.ToUnixTimeMilliseconds();
+        public bool IsCompleted
+        {
+            get
+            {
                 var xx = InnerIsIsCompleted;
                 Console.WriteLine($"MyAwaitable IsCompleted {xx} thread_id={Thread.CurrentThread.ManagedThreadId}");
                 return xx;
             }
         }
-        public void GetResult() { 
-            // 经过测试，发现这一步同步卡住，直到 IsComplete == True
+        public void GetResult()
+        {
+            // 一般来说，这儿的 IsCompleted = True. 如果 是 False，需要同步执行Work，然后保存并返回结果。
+            // 但是也可以特殊用法，比如 Task.Yield() IsCompleted 永远是false
             Console.WriteLine($"MyAwaitable GetResult thread_id={Thread.CurrentThread.ManagedThreadId}");
         }
     };
@@ -209,12 +220,12 @@ class TestTask
         Thread? h1 = null;
         var t1 = Task.Run(async () =>
         {
-            await Task.Yield();
             int id1 = Thread.CurrentThread.ManagedThreadId;
+            await Task.Yield();
             Interlocked.Exchange(ref h1, Thread.CurrentThread);
             await Task.Delay(100);
             int id2 = Thread.CurrentThread.ManagedThreadId;
-            Console.WriteLine($"finish t1 {id1} {id2}");
+            Console.WriteLine($"finish await Delay t1 {id1} {id2}");
         });
 
         Thread? h2 = null;
@@ -225,7 +236,7 @@ class TestTask
             Interlocked.Exchange(ref h2, Thread.CurrentThread);
             Task.Delay(100).Wait();
             int id2 = Thread.CurrentThread.ManagedThreadId;
-            Console.WriteLine($"finish t2 {id1} {id2}");
+            Console.WriteLine($"finish Delay.Wait() t2 {id1} {id2}");
         });
 
         Thread? h3 = null;
@@ -236,7 +247,7 @@ class TestTask
             Interlocked.Exchange(ref h3, Thread.CurrentThread);
             Thread.Sleep(100);
             int id2 = Thread.CurrentThread.ManagedThreadId;
-            Console.WriteLine($"finish t3 {id1} {id2}");
+            Console.WriteLine($"finish Sleep t3 {id1} {id2}");
         });
 
         Thread.Sleep(10);
@@ -347,5 +358,35 @@ class TestTask
         Console.WriteLine($"TestCancelTask End {DateTime.Now.ToString("ss.fff")}");
         sw.Stop();
         Console.WriteLine($"TestCancelTask Cost {sw.ElapsedMilliseconds}ms");
+    }
+
+    static void TestNestedTask()
+    {
+        using var _ = new LogCall();
+        var run = (int tag) =>
+        {
+            Task[] tasks = new Task[5];
+            for (int ii = 0; ii < tasks.Length; ii++)
+            {
+                int i = ii;
+                tasks[i] = Task.Run(async () =>
+                {
+                    int start_id = Thread.CurrentThread.ManagedThreadId;
+                    Console.WriteLine($"{tag}.{i} start. id={start_id}");
+                    await Task.Delay(5);
+                    int last_id = Thread.CurrentThread.ManagedThreadId;
+                    Console.WriteLine($"{tag}.{i} end. id={last_id} start_id={start_id} equal={last_id == start_id}");
+                });
+            }
+            return tasks;
+        };
+        {
+            var t = Task.Run(() =>
+            {
+                Console.WriteLine($"----- 1 start. id={Thread.CurrentThread.ManagedThreadId}");
+                Task.WaitAll(run(1));
+            });
+            t.Wait();
+        }
     }
 }
