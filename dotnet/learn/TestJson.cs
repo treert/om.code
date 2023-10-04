@@ -4,6 +4,38 @@ using System.Text.Json.Serialization;
 
 namespace MyTest
 {
+
+    // 这么简单的函数。但是Json本身并没有。
+    public static class MyJsonExt
+    {
+        private static JsonSerializerOptions s_json_options = new JsonSerializerOptions(){ 
+            WriteIndented = false,
+        };
+
+        public static string ToJsonStr(this JsonNode node)
+        {
+            return node.ToJsonString(s_json_options);
+        }
+
+        public static T ConvertTo<T>(this JsonNode node)
+        {
+            // 这个实现性能并不好。它会先序列化成字符串，然后再重新解析一遍。(⊙o⊙)…
+            T t = JsonSerializer.Deserialize<T>(node, s_json_options)!;
+            return t;
+        }
+
+        public static JsonNode ToJsonNode(this object value)
+        {
+            var node = JsonSerializer.SerializeToNode(value, value.GetType(), s_json_options);
+            return node!;
+        }
+
+        public static void AddKeyValue(this JsonObject json, string key, object? value)
+        {
+            json.Add(key, value?.ToJsonNode());
+        }
+    }
+
     [JsonConverter(typeof(MyNodeJsonConverter))]
     public class MyNode
     {
@@ -126,6 +158,7 @@ namespace MyTest
     }
 
     public class DescriptionConverter : JsonConverter<string>
+    
     {
         public override bool HandleNull => true;
 
@@ -142,6 +175,141 @@ namespace MyTest
             writer.WriteStringValue(value);
     }
 
+    public class PostionZ{
+        public uint z {get; set;} = 444;
+    }
+
+    public class Position:PostionZ
+    {
+        /// <summary>
+        /// Line position in a document (zero-based).
+        /// </summary>
+        public uint line {get;set; }
+
+        /// <summary>
+        /// Character offset on a line in a document(zero-based). The meaning of this
+        /// offset is determined by the negotiated `PositionEncodingKind`.
+        /// 
+        /// If the character value is greater than the line length it defaults back
+        /// to the line length.
+        /// </summary>
+        public uint character { get;set;}
+    }
+
+    public enum EA{
+        A = 1,
+        B = 2,
+    }
+    public class Range
+    {
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public Uri? uri{get;set;}
+        public required Position start { get; set; }
+        public required Position end { get; set; }
+
+        // [JsonInclude]
+        public EA kind {get; set;} = EA.B;
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public Position? pos {get; set;}
+    }
+
+    [JsonConverter(typeof(NotebookDocumentFilterConverter))]
+public class NotebookDocumentFilter
+{
+    public string? notebookType { get; set;}
+    public string? scheme { get; set; }
+    public string? pattern { get; set; }
+    /// <summary>
+    /// 兼容处理下。 lsp 里定义成了 string | NotebookDocumentFilter
+    /// </summary>
+    public string? type_pattern { get; set; }
+
+
+    public bool IsValid()
+    {
+        return type_pattern != null || scheme != null || pattern != null || notebookType != null;
+    }
+}
+
+public class NotebookDocumentFilterConverter : JsonConverter<NotebookDocumentFilter>
+{
+    //public override bool HandleNull => true;
+    public override NotebookDocumentFilter? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        NotebookDocumentFilter ret = new NotebookDocumentFilter();
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.String:
+                ret.type_pattern = reader.GetString();
+                break;
+            case JsonTokenType.StartObject:
+                while (reader.Read())
+                {
+                    if (reader.TokenType == JsonTokenType.EndObject)
+                    {
+                        break;
+                    }
+                    if (reader.TokenType == JsonTokenType.PropertyName)
+                    {
+                        var propertyName = reader.GetString();
+                        reader.Read();
+                        switch (propertyName)
+                        {
+                            case "notebookType":
+                                ret.notebookType = reader.GetString();
+                                break;
+                            case "scheme":
+                                ret.scheme = reader.GetString();
+                                break;
+                            case "pattern":
+                                ret.pattern = reader.GetString();
+                                break;
+                        }
+                    }
+                }
+                break;
+        }
+        if (ret.IsValid())
+        {
+            return ret;
+        }
+        throw new Exception();
+    }
+
+    public override void Write(Utf8JsonWriter writer, NotebookDocumentFilter value, JsonSerializerOptions options)
+    {
+        if (value.type_pattern == null)
+        {
+            writer.WriteStartObject();
+            if (value.notebookType == null)
+            {
+                writer.WriteString("notebookType", value.notebookType);
+            }
+            if (value.scheme == null)
+            {
+                writer.WriteString("scheme", value.scheme);
+            }
+            if (value.pattern == null)
+            {
+                writer.WriteString("pattern", value.pattern);
+            }
+            writer.WriteEndObject();
+        }
+        else
+        {
+            writer.WriteStringValue(value.type_pattern);
+        }
+    }
+}
+
+public class NotebookCellTextDocumentFilter
+{
+    public NotebookDocumentFilter notebook { get; set; }
+    public string? language { get; set; }
+}
+
+
     public class JsonTest
     {
 
@@ -156,6 +324,7 @@ namespace MyTest
         }
         public static void Run()
         {
+            // JsonSerializerOptions.Default.WriteIndented = false;
             using var _ = new LogCall();
             {
                 int? str = default;
@@ -201,7 +370,58 @@ namespace MyTest
                 var j = new JsonObject();
                 j["x"] = null;
                 j["y"] = 2;
-                Console.WriteLine($"{j} x={j["x"]} z={j["z"]}");
+                JsonNode? jx = j["x"];
+                JsonNode? jz = j["z"];
+                JsonNode? jj = JsonNode.Parse("null");
+                Console.WriteLine($"{j} x={jx} z={jz} null={jj}");
+            
+            }
+
+            {
+                var range = new Range{
+                    start = new Position{line=1,character=2},
+                    end = new Position{line=1,character=222},
+                    uri = new Uri("http://xx.xx"),
+                };
+                var s1 = range.ToJsonNode()!.ToJsonStr();
+                Console.WriteLine($"range={s1}");
+                var n = JsonNode.Parse(s1);
+                var range2 = JsonSerializer.Deserialize<Range>(n);
+                Console.WriteLine($"range={range2!.uri}");
+                var range3 = n!.ConvertTo<Range>();
+                Console.WriteLine($"range={range3?.start.character}");
+            }
+
+            {
+                JsonObject json = new JsonObject();
+                json.AddKeyValue("x", new Position{});
+                json.AddKeyValue("xs1", new Position[]{new Position{}, new Position{}});
+                json.AddKeyValue("xs2", new List<Position>{new Position{}, new Position{}});
+                json.AddKeyValue("nil", null);
+                Console.WriteLine($"arr={json.ToJsonStr()}");
+
+                Console.WriteLine($"xs1={json["xs1"]!.ConvertTo<Position[]>()}");
+                Console.WriteLine($"xs1={json["xs1"]!.ConvertTo<Position[]>()}");
+                Console.WriteLine($"xs2={json["xs2"]!.ConvertTo<List<Position>>()}");
+            }
+
+            {
+                var json = """{"uri":"http://xx.xx","start":{"line":1,"character":2,"z":444},"end":{"line":1,"character":222,"z":444},"kind":3}""";
+                var range = JsonNode.Parse(json)!.ConvertTo<Range>();
+                // c# enum 可以超出范围的呀
+                // https://stackoverflow.com/questions/618305/casting-an-out-of-range-number-to-an-enum-in-c-sharp-does-not-produce-an-excepti
+                Console.WriteLine($"kind={range?.kind}");
+            }
+
+            {
+                var json = """
+                {"notebook":{"scheme":"file","pattern":"**/books1/**","notebookType":"jupyter-notebook"},
+                "language":"python",
+                "xxx":12
+                }
+                """;
+                var xx = JsonNode.Parse(json)!.ConvertTo<NotebookCellTextDocumentFilter>();
+                Console.WriteLine($"xx={xx?.notebook.IsValid()}");
             }
 
         }
