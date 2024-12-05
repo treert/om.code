@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Runtime.Serialization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -5,11 +7,69 @@ using System.Text.Json.Serialization;
 namespace MyTest
 {
 
+    /// <summary>
+    /// 类似 JsonStringEnumConverter 不过序列化时全部转成小写。
+    /// 
+    /// https://stackoverflow.com/questions/59059989/system-text-json-how-do-i-specify-a-custom-name-for-an-enum-value
+    /// </summary>
+    public class MyJsonEnumConverter : JsonConverter<object>
+    {
+        /// <inheritdoc/>
+        public override bool CanConvert(Type typeToConvert)
+        {
+            return typeToConvert.IsEnum || Nullable.GetUnderlyingType(typeToConvert)?.IsEnum == true;
+        }
+        /// <inheritdoc/>
+        public override object? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            var enumType = Nullable.GetUnderlyingType(typeToConvert) ?? typeToConvert;
+            if (reader.TokenType == JsonTokenType.String){
+                string str = reader.GetString()!;
+                return Enum.Parse(enumType, str, true);
+            }
+            else if(reader.TokenType == JsonTokenType.Number){
+                int num = reader.GetInt32();
+                return Enum.ToObject(enumType, num);
+            }
+            else if(reader.TokenType == JsonTokenType.Null){
+                return null;
+            }
+            throw new Exception();
+        }
+        /// <inheritdoc/>
+        public override void Write(Utf8JsonWriter writer, object value, JsonSerializerOptions options)
+        {
+            if (value == null)
+                writer.WriteNullValue();
+            else{
+                writer.WriteStringValue((value as Enum)!.ToString().ToLower());
+                // writer.WriteStringValue(GetDescription((value as Enum)!));
+            }
+        }
+        /// <summary>
+        /// Get description
+        /// </summary>
+        /// <param name="source"></param>
+        /// <returns></returns>
+        static string GetDescription(Enum source)
+        {
+            System.Reflection.FieldInfo? fi = source.GetType().GetField(source.ToString());
+            if (fi == null) return source.ToString().ToLower();
+            System.ComponentModel.DescriptionAttribute[] attributes = (System.ComponentModel.DescriptionAttribute[])fi.GetCustomAttributes(typeof(System.ComponentModel.DescriptionAttribute), false);
+
+            if (attributes != null && attributes.Length > 0) return attributes[0].Description;
+            else return source.ToString().ToLower();
+        }
+
+    }
+
     // 这么简单的函数。但是Json本身并没有。
     public static class MyJsonExt
     {
         private static JsonSerializerOptions s_json_options = new JsonSerializerOptions(){ 
             WriteIndented = false,
+            // 如果用了。需要一直用这套设置。
+            // Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)},
         };
 
         public static string ToJsonStr(this JsonNode node)
@@ -17,7 +77,12 @@ namespace MyTest
             return node.ToJsonString(s_json_options);
         }
 
-        public static T ConvertTo<T>(this JsonNode node)
+        public static string ToJsonStr(this object value)
+        {
+            return JsonSerializer.Serialize(value, value.GetType(), s_json_options);
+        }
+
+        public static T ConvertTo<T>(this JsonNode? node)
         {
             // 这个实现性能并不好。它会先序列化成字符串，然后再重新解析一遍。(⊙o⊙)…
             T t = JsonSerializer.Deserialize<T>(node, s_json_options)!;
@@ -200,15 +265,34 @@ namespace MyTest
         A = 1,
         B = 2,
     }
+
+    /// <summary>
+    /// JsonStringEnumConverter 默认不区分大小写
+    /// </summary>
+    // [JsonConverter(typeof(JsonStringEnumConverter))]
+    [JsonConverter(typeof(MyJsonEnumConverter))]
+    public enum EB{
+        AA = 11,
+        [EnumMember(Value ="xbb")]
+        BB = 22,
+        [Description("xclass")]
+        @class = 33,
+    }
+
     public class Range
     {
+        public string sss => "sss";
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public Uri? uri{get;set;}
-        public required Position start { get; set; }
-        public required Position end { get; set; }
+        public Position start { get; set; }
+        public Position end { get; set; }
 
         // [JsonInclude]
         public EA kind {get; set;} = EA.B;
+
+        public EB? bb {get; set;} = EB.BB;
+
+        public EB[] bbs {get;set;} = new EB[]{EB.AA, EB.BB, EB.@class};
 
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public Position? pos {get; set;}
@@ -309,6 +393,9 @@ public class NotebookCellTextDocumentFilter
     public string? language { get; set; }
 }
 
+    public class EmptyObject{
+
+    }
 
     public class JsonTest
     {
@@ -406,11 +493,17 @@ public class NotebookCellTextDocumentFilter
             }
 
             {
-                var json = """{"uri":"http://xx.xx","start":{"line":1,"character":2,"z":444},"end":{"line":1,"character":222,"z":444},"kind":3}""";
+                EA aa = EA.B;
+                EB bb = EB.BB;
+                ValueTuple<EA,EB> xx = (EA.A, EB.AA);
+                Tuple<EA,EB> yy = new Tuple<EA, EB>(EA.A, EB.AA);
+                Console.WriteLine($"EB = {EB.AA} EA = {EA.A} aa={aa} bb={bb} xx={xx} yy={yy}");
+                var json = """{"sss":"abc","uri":"http://xx.xx","start":{"line":1,"character":2,"z":444},"end":{"line":1,"character":222,"z":444},"kind":3,"bb":"aa"}""";
                 var range = JsonNode.Parse(json)!.ConvertTo<Range>();
                 // c# enum 可以超出范围的呀
                 // https://stackoverflow.com/questions/618305/casting-an-out-of-range-number-to-an-enum-in-c-sharp-does-not-produce-an-excepti
-                Console.WriteLine($"kind={range?.kind}");
+                Console.WriteLine($"kind={range?.kind.ToString()} bb={range?.bb.ToString()}");
+                // todo 非常特殊。enum.ToString() 一般是按名字变成字符串。但是如果超过范围，按数字变成字符串
             }
 
             {
@@ -423,7 +516,14 @@ public class NotebookCellTextDocumentFilter
                 var xx = JsonNode.Parse(json)!.ConvertTo<NotebookCellTextDocumentFilter>();
                 Console.WriteLine($"xx={xx?.notebook.IsValid()}");
             }
-
+            {
+                var t1 = new EmptyObject();
+                var t2 = new JsonArray();
+                Console.WriteLine($"t1={t1.ToJsonStr()} t2={t2}");
+                JsonNode? node = JsonNode.Parse("null");
+                var xx = node.ConvertTo<Range>();
+                Console.WriteLine($"xx={xx}");
+            }
         }
     }
 }
