@@ -2,14 +2,16 @@
 #include<cstdint>
 #include<time.h>
 
-#define PaddingSize 32
+// #define PaddingSize 4
 
 struct FPos
 {
     float X;
     float Y;
     float Z;
+    #ifdef PaddingSize
     char padding[PaddingSize];
+    #endif
     void Update(){
         X += 1.0f;
         Y -= 1.0f;
@@ -21,7 +23,9 @@ struct FAttr
 {
     int32_t Blood;
     int32_t Magic;
+    #ifdef PaddingSize
     char padding[PaddingSize];
+    #endif
     void Update(){
         Blood -= 10;
         Magic ^= 0x1243123;
@@ -32,7 +36,9 @@ struct FMove
 {
     float Speed;
     float Dis;
+    #ifdef PaddingSize
     char padding[PaddingSize];
+    #endif
     void Update(){
         Speed += 1.4f;
         Dis -= Speed * 0.03f;
@@ -40,7 +46,7 @@ struct FMove
 };
 
 const int ChunkSize = 64*1024;
-const int ScaleChunckSize = 4;
+const int ScaleChunckSize = 512;
 const int LoopNum = 1024*32 / ScaleChunckSize;
 
 
