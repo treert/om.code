@@ -82,6 +82,16 @@ struct FLogCostTime
     }
 };
 
+
+#define my_test_all() {\
+        test_rw_pos();\
+        test_rw_all();\
+        test_rw_attr();\
+        test_rw_move();\
+        /*test_rw_move();*/  /* 这一行会影响test_rw_attr g++ -O2 情况下*/ \
+        printf("\n");\
+}
+
 struct FTestAOS
 {
     struct FItem
@@ -109,11 +119,7 @@ struct FTestAOS
 
     void test(){
         printf("============= Test AOS ====================\n");
-        test_rw_pos();
-        test_rw_all();
-        test_rw_attr();
-        test_rw_move();
-        printf("\n");
+        my_test_all();
     }
     
     void test_rw_all(){
@@ -195,10 +201,7 @@ struct FTestSOA
 
     void test(){
         printf("============= Test SOA ====================\n");
-        test_rw_pos();
-        test_rw_all();
-        test_rw_attr();
-        test_rw_move();
+        my_test_all();
     }
 
     void test_rw_all(){
