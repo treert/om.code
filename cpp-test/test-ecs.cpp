@@ -2,7 +2,16 @@
 #include<cstdint>
 #include<time.h>
 
-// #define PaddingSize 4
+// 发现 Prefetch 对于 AOS 的效果也不大
+#if (defined(_M_IX86) || defined(_M_X64))
+#define USE_Prefetch 0
+#endif
+
+#if USE_Prefetch
+#include <intrin.h>
+#endif
+
+// #define PaddingSize 12
 
 struct FPos
 {
@@ -45,8 +54,16 @@ struct FMove
     }
 };
 
+#if USE_Prefetch
+__forceinline static void Prefetch(const void* Ptr){
+    _mm_prefetch(static_cast<const char*>(Ptr), _MM_HINT_T0);
+}
+#else
+#define Prefetch(Ptr) {}
+#endif
+
 const int ChunkSize = 64*1024;
-const int ScaleChunckSize = 512;
+const int ScaleChunckSize = 1;
 const int LoopNum = 1024*32 / ScaleChunckSize;
 
 
@@ -104,6 +121,7 @@ struct FTestAOS
         for (int i = 0;  i < LoopNum; i++){
             for (int k = 0; k < num; k++){
                 FItem *Data = Chunk + k;
+                Prefetch(Data);
                 Data->Attr.Update();
                 Data->Move.Update();
                 Data->Pos.Update();
@@ -116,6 +134,7 @@ struct FTestAOS
         for (int i = 0;  i < LoopNum; i++){
             for (int k = 0; k < num; k++){
                 FItem *Data = Chunk + k;
+                Prefetch(Data);
                 // Data->Attr.Update();
                 // Data->Move.Update();
                 Data->Pos.Update();
@@ -128,6 +147,7 @@ struct FTestAOS
         for (int i = 0;  i < LoopNum; i++){
             for (int k = 0; k < num; k++){
                 FItem *Data = Chunk + k;
+                Prefetch(Data);
                 Data->Attr.Update();
                 // Data->Move.Update();
                 // Data->Pos.Update();
@@ -140,6 +160,7 @@ struct FTestAOS
         for (int i = 0;  i < LoopNum; i++){
             for (int k = 0; k < num; k++){
                 FItem *Data = Chunk + k;
+                Prefetch(Data);
                 // Data->Attr.Update();
                 Data->Move.Update();
                 // Data->Pos.Update();
