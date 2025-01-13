@@ -200,7 +200,7 @@ struct FTestSOA
     }
 
     void test_rw_all(){
-        FLogCostTime log_time("FTestAOS test_rw_all");
+        FLogCostTime log_time("FTestSOA test_rw_all");
         for (int i = 0;  i < LoopNum; i++){
             for (int k = 0; k < Num; k++){
                 PosData[k].Update();
@@ -211,7 +211,7 @@ struct FTestSOA
     }
 
     void test_parall(){
-        FLogCostTime log_time("FTestAOS test_parall");
+        FLogCostTime log_time("FTestSOA test_parall");
         std::thread t1([&](){
             for (int i = 0;  i < LoopNum; i++){
                 for (int k = 0; k < Num; k++){
@@ -239,7 +239,7 @@ struct FTestSOA
     }
 
     void test_rw_pos(){
-        FLogCostTime log_time("FTestAOS test_rw_pos");
+        FLogCostTime log_time("FTestSOA test_rw_pos");
         for (int i = 0;  i < LoopNum; i++){
             for (int k = 0; k < Num; k++){
                 PosData[k].Update();
@@ -250,7 +250,7 @@ struct FTestSOA
     }
 
     void test_rw_attr(){
-        FLogCostTime log_time("FTestAOS test_rw_attr");
+        FLogCostTime log_time("FTestSOA test_rw_attr");
         for (int i = 0;  i < LoopNum; i++){
             for (int k = 0; k < Num; k++){
                 // PosData[k].Update();
@@ -261,7 +261,7 @@ struct FTestSOA
     }
 
     void test_rw_move(){
-        FLogCostTime log_time("FTestAOS test_rw_move");
+        FLogCostTime log_time("FTestSOA test_rw_move");
         for (int i = 0;  i < LoopNum; i++){
             for (int k = 0; k < Num; k++){
                 // PosData[k].Update();
