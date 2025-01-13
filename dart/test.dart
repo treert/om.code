@@ -53,7 +53,9 @@ class T4 with T2{
 }
 
 class T5 extends T2{
-
+  void _test5(){
+    print('haha t5');
+  }
 }
 
 void main() {
@@ -63,6 +65,10 @@ void main() {
     printAllType(T3);
     printAllType(T4);
     printAllType(T5);
+  }
+  {
+    var t5 = T5();
+    t5._test5();
   }
   {
     test_switch(null);
@@ -85,11 +91,9 @@ void main() {
 
     print((recordA, recordB, recordA == recordB));
   }
-  // {
-  //   for (var i = 0; i < 10; i++) {
-  //     var kk = 1_000_000;
-  //     var k = int.parse("1000000");
-  //     print('hello ${i + 1} k=${k+kk}');
-  //   }
-  // }
+  {
+    var kk = 1_000_000;
+    var k = int.tryParse("1_000_000");
+    print('hello kk=$kk k=$k');
+  }
 }
