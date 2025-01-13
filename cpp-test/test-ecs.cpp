@@ -10,6 +10,47 @@
 总结：
 1. 队伍单线程运行。SOA 只有在数组内存大于L2缓存时，才会明显提速。
 2. 多线程并行时。SOA可以避免 Cache Line 机制导致的伪共享问题，显著提升性能。
+    - g++ -O3 编译的情况下，这条的效果又没有了。
+
+总打来说。SOA至少没什么坏处，或许有好处。
+ECS 运用SOA或许能提升不少性能。更重要的是组织管理代码的方式发生改变。
+*/
+
+/*   测试结果： Ryzen 7950x
+
+C:\MyGit\om.code\cpp-test>g++ -O2 test-ecs.cpp && a.exe
+sizeof(FItem) = 28 Num = 4681 LoopNum = 16384
+
+============= Test AOS ====================
+FTestAOS test_rw_all cost: 58.101ms
+FTestAOS test_parall cost: 223.885ms
+FTestAOS test_rw_pos cost: 29.031ms
+FTestAOS test_rw_attr cost: 19.064ms
+FTestAOS test_rw_move cost: 28.461ms
+
+============= Test SOA ====================
+FTestSOA test_rw_all cost: 59.487ms
+FTestSOA test_parall cost: 29.487ms
+FTestSOA test_rw_pos cost: 29.171ms
+FTestSOA test_rw_attr cost: 16.142ms
+FTestSOA test_rw_move cost: 28.635ms
+
+C:\MyGit\om.code\cpp-test>g++ -O3 test-ecs.cpp && a.exe 
+sizeof(FItem) = 28 Num = 4681 LoopNum = 16384
+
+============= Test AOS ====================
+FTestAOS test_rw_all cost: 98.242ms
+FTestAOS test_parall cost: 47.513ms
+FTestAOS test_rw_pos cost: 41.905ms
+FTestAOS test_rw_attr cost: 3.520ms
+FTestAOS test_rw_move cost: 42.163ms
+
+============= Test SOA ====================
+FTestSOA test_rw_all cost: 42.164ms
+FTestSOA test_parall cost: 46.065ms
+FTestSOA test_rw_pos cost: 41.891ms
+FTestSOA test_rw_attr cost: 3.833ms
+FTestSOA test_rw_move cost: 42.104ms
 */
 
 
