@@ -1,6 +1,17 @@
 #include<iostream>
 #include<cstdint>
 #include<time.h>
+#include<memory>
+#include<thread>
+
+#include "utils.h"
+
+/*
+总结：
+1. 队伍单线程运行。SOA 只有在数组内存大于L2缓存时，才会明显提速。
+2. 多线程并行时。SOA可以避免 Cache Line 机制导致的伪共享问题，显著提升性能。
+*/
+
 
 // 发现 Prefetch 对于 AOS 的效果也不大
 #if (defined(_M_IX86) || defined(_M_X64))
@@ -9,6 +20,14 @@
 
 #if USE_Prefetch
 #include <intrin.h>
+#endif
+
+#if USE_Prefetch
+__forceinline static void Prefetch(const void* Ptr){
+    _mm_prefetch(static_cast<const char*>(Ptr), _MM_HINT_T0);
+}
+#else
+#define Prefetch(Ptr) {}
 #endif
 
 // #define PaddingSize 12
@@ -54,68 +73,33 @@ struct FMove
     }
 };
 
-#if USE_Prefetch
-__forceinline static void Prefetch(const void* Ptr){
-    _mm_prefetch(static_cast<const char*>(Ptr), _MM_HINT_T0);
-}
-#else
-#define Prefetch(Ptr) {}
-#endif
-
-const int ChunkSize = 64*1024;
-const int ScaleChunckSize = 1;
-const int LoopNum = 1024*32 / ScaleChunckSize;
-
-
-struct FLogCostTime
+struct FItem
 {
-    const char * msg;
-    clock_t t1;
-    FLogCostTime(const char* InMsg){
-        t1 = clock();
-        msg = InMsg;
-    }
-    ~FLogCostTime(){
-        clock_t t2 = clock();
-        double c1 = (1000.0*(t2-t1)/CLOCKS_PER_SEC);
-        printf("%s cost: %.2lfms\n",msg, c1);
-    }
+    FPos Pos;
+    FAttr Attr;
+    FMove Move;
 };
 
 
+constexpr int CacheLineSize = 64;
+
+
 #define my_test_all() {\
-        test_rw_pos();\
         test_rw_all();\
+        test_parall();\
+        test_rw_pos();\
         test_rw_attr();\
         test_rw_move();\
         /*test_rw_move();*/  /* 这一行会影响test_rw_attr g++ -O2 情况下*/ \
         printf("\n");\
 }
 
+
+
+template<int Num, int LoopNum>
 struct FTestAOS
 {
-    struct FItem
-    {
-        FPos Pos;
-        FAttr Attr;
-        FMove Move;
-    };
-
-    FItem* Chunk = nullptr;
-    int num = 0;
-
-    FTestAOS(){
-        int size = sizeof(FItem);
-        num = ChunkSize/size * ScaleChunckSize;
-        Chunk = new FItem[num];
-        std::cout << "FTestAOS sizeof(FItem)=" << size << " num=" << num << std::endl;
-    }
-
-    ~FTestAOS(){
-        delete Chunk;
-        Chunk = nullptr;
-        num = 0;
-    }
+    alignas(CacheLineSize) FItem Items[Num];
 
     void test(){
         printf("============= Test AOS ====================\n");
@@ -125,21 +109,49 @@ struct FTestAOS
     void test_rw_all(){
         FLogCostTime log_time("FTestAOS test_rw_all");
         for (int i = 0;  i < LoopNum; i++){
-            for (int k = 0; k < num; k++){
-                FItem *Data = Chunk + k;
+            for (int k = 0; k < Num; k++){
+                FItem *Data = Items + k;
                 Prefetch(Data);
+                Data->Pos.Update();
                 Data->Attr.Update();
                 Data->Move.Update();
-                Data->Pos.Update();
             }
         }
+    }
+
+    void test_parall(){
+        FLogCostTime log_time("FTestAOS test_parall");
+        std::thread t1([&](){
+            for (int i = 0;  i < LoopNum; i++){
+                for (int k = 0; k < Num; k++){
+                    Items[k].Pos.Update();
+                }
+            }
+        });
+        std::thread t2([&](){
+            for (int i = 0;  i < LoopNum; i++){
+                for (int k = 0; k < Num; k++){
+                    Items[k].Attr.Update();
+                }
+            }
+        });
+        std::thread t3([&](){
+            for (int i = 0;  i < LoopNum; i++){
+                for (int k = 0; k < Num; k++){
+                    Items[k].Move.Update();
+                }
+            }
+        });
+        t1.join();
+        t2.join();
+        t3.join();
     }
 
     void test_rw_pos(){
         FLogCostTime log_time("FTestAOS test_rw_pos");
         for (int i = 0;  i < LoopNum; i++){
-            for (int k = 0; k < num; k++){
-                FItem *Data = Chunk + k;
+            for (int k = 0; k < Num; k++){
+                FItem *Data = Items + k;
                 Prefetch(Data);
                 // Data->Attr.Update();
                 // Data->Move.Update();
@@ -151,8 +163,8 @@ struct FTestAOS
     void test_rw_attr(){
         FLogCostTime log_time("FTestAOS test_rw_attr");
         for (int i = 0;  i < LoopNum; i++){
-            for (int k = 0; k < num; k++){
-                FItem *Data = Chunk + k;
+            for (int k = 0; k < Num; k++){
+                FItem *Data = Items + k;
                 Prefetch(Data);
                 Data->Attr.Update();
                 // Data->Move.Update();
@@ -164,8 +176,8 @@ struct FTestAOS
     void test_rw_move(){
         FLogCostTime log_time("FTestAOS test_rw_move");
         for (int i = 0;  i < LoopNum; i++){
-            for (int k = 0; k < num; k++){
-                FItem *Data = Chunk + k;
+            for (int k = 0; k < Num; k++){
+                FItem *Data = Items + k;
                 Prefetch(Data);
                 // Data->Attr.Update();
                 Data->Move.Update();
@@ -175,29 +187,12 @@ struct FTestAOS
     }
 };
 
+template<int Num, int LoopNum>
 struct FTestSOA
 {
-    int8_t* Chunk = nullptr;
-    int num = 0;
-
-    FPos *PosPtr;
-    FAttr *AttrPtr;
-    FMove *MovePtr;
-
-    FTestSOA(){
-        Chunk = new int8_t[ChunkSize*ScaleChunckSize];
-        int size = sizeof(FPos) + sizeof(FAttr) + sizeof(FMove);
-        num = ChunkSize/size * ScaleChunckSize;
-        std::cout << "FTestSOA sizeof(FItem)=" << size << " num=" << num << std::endl;
-        PosPtr = reinterpret_cast<FPos *>(Chunk);
-        AttrPtr = reinterpret_cast<FAttr *>(Chunk + (num * sizeof(FPos)));
-        MovePtr = reinterpret_cast<FMove *>(Chunk + (num * (sizeof(FPos) + sizeof(FAttr))));
-    }
-    ~FTestSOA(){
-        delete Chunk;
-        Chunk = nullptr;
-        num = 0;
-    }
+    alignas(CacheLineSize) FPos PosData[Num];
+    alignas(CacheLineSize) FAttr AttrData[Num];
+    alignas(CacheLineSize) FMove MoveData[Num];
 
     void test(){
         printf("============= Test SOA ====================\n");
@@ -207,21 +202,49 @@ struct FTestSOA
     void test_rw_all(){
         FLogCostTime log_time("FTestAOS test_rw_all");
         for (int i = 0;  i < LoopNum; i++){
-            for (int k = 0; k < num; k++){
-                (PosPtr+k)->Update();
-                (AttrPtr+k)->Update();
-                (MovePtr+k)->Update();
+            for (int k = 0; k < Num; k++){
+                PosData[k].Update();
+                AttrData[k].Update();
+                MoveData[k].Update();
             }
         }
+    }
+
+    void test_parall(){
+        FLogCostTime log_time("FTestAOS test_parall");
+        std::thread t1([&](){
+            for (int i = 0;  i < LoopNum; i++){
+                for (int k = 0; k < Num; k++){
+                    PosData[k].Update();
+                }
+            }
+        });
+        std::thread t2([&](){
+            for (int i = 0;  i < LoopNum; i++){
+                for (int k = 0; k < Num; k++){
+                    AttrData[k].Update();
+                }
+            }
+        });
+        std::thread t3([&](){
+            for (int i = 0;  i < LoopNum; i++){
+                for (int k = 0; k < Num; k++){
+                    MoveData[k].Update();
+                }
+            }
+        });
+        t1.join();
+        t2.join();
+        t3.join();
     }
 
     void test_rw_pos(){
         FLogCostTime log_time("FTestAOS test_rw_pos");
         for (int i = 0;  i < LoopNum; i++){
-            for (int k = 0; k < num; k++){
-                (PosPtr+k)->Update();
-                // (AttrPtr+k)->Update();
-                // (MovePtr+k)->Update();
+            for (int k = 0; k < Num; k++){
+                PosData[k].Update();
+                // AttrData[k].Update();
+                // MoveData[k].Update();
             }
         }
     }
@@ -229,10 +252,10 @@ struct FTestSOA
     void test_rw_attr(){
         FLogCostTime log_time("FTestAOS test_rw_attr");
         for (int i = 0;  i < LoopNum; i++){
-            for (int k = 0; k < num; k++){
-                // (PosPtr+k)->Update();
-                (AttrPtr+k)->Update();
-                // (MovePtr+k)->Update();
+            for (int k = 0; k < Num; k++){
+                // PosData[k].Update();
+                AttrData[k].Update();
+                // MoveData[k].Update();
             }
         }
     }
@@ -240,10 +263,10 @@ struct FTestSOA
     void test_rw_move(){
         FLogCostTime log_time("FTestAOS test_rw_move");
         for (int i = 0;  i < LoopNum; i++){
-            for (int k = 0; k < num; k++){
-                // (PosPtr+k)->Update();
-                // (AttrPtr+k)->Update();
-                (MovePtr+k)->Update();
+            for (int k = 0; k < Num; k++){
+                // PosData[k].Update();
+                // AttrData[k].Update();
+                MoveData[k].Update();
             }
         }
     }
@@ -251,17 +274,30 @@ struct FTestSOA
 
 int main()
 {
-    
+    constexpr int ChunkSize = 64*1024;
     {
-        FTestAOS test_aos;
-        test_aos.test();
+        constexpr int ScaleChunckSize = 2;
+        constexpr int Num = ChunkSize * ScaleChunckSize / sizeof(FItem);
+        constexpr int LoopNum = 1024*32 / ScaleChunckSize;
+
+        printf("sizeof(FItem) = %d Num = %d LoopNum = %d\n\n", sizeof(FItem), Num, LoopNum);
+
+        // {
+        //     FTestAOS<Num, LoopNum> test_aos;
+        //     test_aos.test();
+        // // }
+        // // {
+        //     FTestSOA<Num, LoopNum> test_soa;
+        //     test_soa.test();
+        // }
+
+        {
+            auto test_aos = std::make_shared<FTestAOS<Num, LoopNum>>();
+            test_aos->test();
+        }
+        {
+            auto test_soa = std::make_shared<FTestSOA<Num, LoopNum>>();
+            test_soa->test();
+        }
     }
-    {
-        FTestSOA test_soa;
-        test_soa.test();
-    }
-    // {
-    //     FTestAOS test_aos;
-    //     test_aos.test();
-    // }
 }
