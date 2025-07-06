@@ -1,9 +1,13 @@
 import argparse
+import atexit
+from dataclasses import dataclass, field
 import logging
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
+import time
 from typing import IO, List
 
 import colorlog
@@ -12,16 +16,30 @@ import colorlog
 代码基本是AI生成的。对话反馈调试花了大概4个小时，还是不熟练呀。
 """
 
+@dataclass
+class GArgs:
+    input_path:list[str] = field(default_factory=list)
+    out_dir:str = '.'
+    set_bitrate: bool = False
+    dry_run: float = 0
+    dry_run_out: bool = False
+    overwrite: bool = False
+    out_ext:str = '.mp4'
+
+g_args = GArgs()
+g_exts = ('.mp4', '.mkv', '.avi', '.rmvb', '.wmv', '.mov')
+
 # 配置日志系统
 # logging.basicConfig(
 #     level=logging.DEBUG,  # 设置日志级别
-#     format='%(asctime)s - %(levelname)s - %(message)s'
+#     format='%(asctime)s - %(levelname)s - %(message)s',
+#     stream=sys.stdout,# 默认是 stderr
 # )
 
 def setup_colored_logging():
     """配置彩色日志输出"""
     formatter = colorlog.ColoredFormatter(
-        '%(log_color)s%(asctime)s %(levelname)-8s %(message)s%(reset)s',
+        '%(log_color)som-log: %(asctime)s %(levelname)-8s %(message)s%(reset)s',
         datefmt='%Y-%m-%d %H:%M:%S',
         log_colors={
             'DEBUG': 'cyan',
@@ -31,16 +49,18 @@ def setup_colored_logging():
             'CRITICAL': 'red,bg_white',
         },
         reset=True,
-        style='%'
+        style='%',
+        # stream=sys.stdout,# 默认是 stderr 没有用
     )
     
-    handler = colorlog.StreamHandler()
-    handler.setFormatter(formatter)
+    console = colorlog.StreamHandler(sys.stdout) # 不传参数，会输出到 sys.stderr 里
+    console.setFormatter(formatter)
+    
     
     logger = colorlog.getLogger()
     logger.setLevel(logging.INFO)
-    # logger.setLevel(logging.DEBUG)
-    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(console)
 
 setup_colored_logging()
 
@@ -75,12 +95,27 @@ def get_video_height(input_file):
     ]
     try:
         cmd_out = subprocess.check_output(cmd).decode('utf-8').strip()
-        logging.debug(f"get_video_height {cmd_out}")
         height = int(cmd_out)
         return height
     except subprocess.CalledProcessError as e:
         logging.error(f"错误：无法获取视频高度 - {e}")
         sys.exit(1)
+
+def get_video_duration(input_file):
+    """使用ffprobe获取视频总时长（秒）"""
+    cmd = [
+        'ffprobe', '-v', 'error',
+        '-show_entries', 'format=duration',
+        '-of', 'default=noprint_wrappers=1:nokey=1',
+        input_file
+    ]
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    return float(result.stdout.strip())
+
+def time_to_seconds(time_str):
+    """将时间字符串 (HH:MM:SS.ms) 转换为秒数"""
+    h, m, s = time_str.split(':')
+    return int(h) * 3600 + int(m) * 60 + float(s)
 
 def determine_bitrate(height):
     """根据视频高度确定目标码率（单位：kbps）"""
@@ -106,9 +141,10 @@ def print_pipe(stream:IO[bytes]):
                 sys.stdout.buffer.write(buffer)
                 sys.stdout.flush()
             break
-        
+
         # 如果遇到 \r 或 \n，输出当前 buffer 并清空
         if byte in (b'\r', b'\n'):
+            # if buffer:
             sys.stdout.buffer.write(buffer)
             sys.stdout.buffer.write(byte)
             sys.stdout.flush()
@@ -121,50 +157,149 @@ def transcode_video(input_file, output_file, bitrate):
     """使用 ffmpeg 进行转码（显示实时输出）"""
     cmd = [
         'ffmpeg',
+        # '-progress','pipe:1',# 效果不佳
+        # '-movflags', '+faststart', # 报错
         '-i', input_file,
-        '-c:a', 'copy',
-        '-c:v', 'av1_nvenc',
-        '-rc', 'vbr', # 默认就是这样。其实没有必要
-        '-b:v', f'{bitrate}k',
+        '-c:a', 'copy',# 音频直接复制好了。不大。
+        '-c:v', 'av1_nvenc',# 速度比 hevc_nvenc 快一倍
+        # '-c:v', 'hevc_nvenc',
+        # '-c:v', 'h264_nvenc',
+        # '-rc', 'vbr', # 默认就是这样。其实没有必要
         '-preset', 'p7',
-        '-y',
-        output_file
+        # '-force_key_frames','00:00:01', # 想增加个预览封面的，但是没有用。windows的封面似乎只支持 h264 h265
+        '-y'
     ]
+    if g_args.set_bitrate:
+        cmd.extend(('-b:v', f'{bitrate}k'))
+    else:
+        # cmd.extend(('-cq','23')) # 默认就是 0, 自动。不知道啥意思，越小越好
+        pass
+    if g_args.dry_run > 0 and not g_args.dry_run_out:
+        cmd.extend(('-f', 'null'))
+        # cmd.extend(('-t', f'{g_args.dry_run}'))
+        cmd.append('-')
+    else:
+        cmd.append(output_file)
     try:
         # 实时显示 ffmpeg 输出
         print(" ".join(cmd))
         print("")
-        process = subprocess.Popen(
-            cmd,
-            stderr=subprocess.STDOUT,
-            stdout=subprocess.PIPE,
-            universal_newlines=False,  # 关闭文本模式 保留 \r（回车符）或其它控制字符（如进度条）
-            bufsize=0,
-        )
+        mode = 1
+        if mode == 3:
+            # 这个看上去最简单。
+            try:
+                process = subprocess.run(
+                    cmd,
+                    stdout=sys.stdout,       # 实时打印 stdout
+                    stderr=sys.stderr,       # 实时打印 stderr
+                    check=True,              # throw CalledProcessError if returncode != 0
+                    timeout=g_args.dry_run if g_args.dry_run > 0 else None,
+                    )
+            except subprocess.TimeoutExpired:
+                # 超时当成是正常现象
+                pass
+            except KeyboardInterrupt:# 有个缺点，会输出一段
+                print("") # 
+                logging.info(f"Ctrl+C KeyboardInterrupt")
+                raise subprocess.CalledProcessError(1, cmd)
+        elif mode <= 2:
+            # 这些模式没有支持 timeout，如果要实现需要在 loop 里计时
+            process:subprocess.Popen = None
+            is_timeout = False
+            if mode == 2:
+                # AI给了这个方案，头大，明明有简单的方案。不支持 timeout，实现麻烦
+                process = subprocess.Popen(
+                    cmd,
+                    stderr=subprocess.STDOUT,
+                    stdout=subprocess.PIPE,
+                    universal_newlines=False,  # 关闭文本模式 保留 \r（回车符）或其它控制字符（如进度条）
+                    bufsize=0,
+                )
 
-        try:
-            print_pipe(process.stdout)
-        except KeyboardInterrupt:
-            logging.info(f"\nCtrl+C KeyboardInterrupt")
-            process.terminate()
+                # def kill_child():
+                #     process.terminate()  # 或 proc.kill()
+                # atexit.register(kill_child)  # 父进程退出时触发
+                atexit.register(lambda: process.terminate())
+
+                try:
+                    print_pipe(process.stdout)
+                except KeyboardInterrupt:
+                    print("") # 
+                    logging.info(f"Ctrl+C KeyboardInterrupt")
+                    sys.exit(1)
+                except Exception as e:
+                    print("") # 
+                    logging.error(f"未知错误：{e}")
+                    process.terminate()
+            elif mode == 1:
+                # 第一次尝试，开始时无法处理进度条。后为了定制自己的进度条，这个反而是最佳的了
+                # 获取视频总时长
+                total_duration = get_video_duration(input_file)
+
+                # 正则表达式匹配进度信息
+                time_pattern = re.compile(r'time=(\d+:\d+:\d+\.\d+)')
+                progress_pattern = re.compile(
+                    r'frame=\s*\d+\s+fps=\s*\d+\.?\d*\s+q=\s*[\d+-]+\.?\d*\s+'
+                    r'size=\s*[^ ]*\s+time=(\d+:\d+:\d+\.\d+)\s+'
+                    # r'bitrate=\s*\d+\.?\d*kbits/s\s+speed=\s*\d+\.?\d*x'
+                )
+
+                process = subprocess.Popen(
+                    cmd,
+                    stderr=subprocess.STDOUT,
+                    stdout=subprocess.PIPE,
+                    universal_newlines=True, # 没法处理进度条的情况，\r 会被转换成 \n
+                    encoding='utf-8',
+                    errors='ignore',
+                    bufsize=1,
+                )
+                atexit.register(lambda: process.terminate())
+                try:
+                    start_time = time.time()  # 记录开始时间
+                    for line in process.stdout:
+                        line:str
+                        line = line.rstrip('\n')
+                        # 尝试匹配进度信息
+                        time_match = progress_pattern.search(line)
+                        if time_match:
+                            current_time = time_match.group(1)
+                            current_seconds = time_to_seconds(current_time)
+                            
+                            # 计算百分比
+                            percent = min(100, (current_seconds / total_duration) * 100)
+                            
+                            # 在原始进度信息前添加百分比
+                            sys.stdout.write(f"\r[{percent:3.0f}%] {line}")
+                            sys.stdout.flush()
+                        else:
+                            if logging.getLogger().getEffectiveLevel() <= logging.DEBUG:
+                                # 普通日志信息直接输出
+                                sys.stderr.write(line)
+                                sys.stderr.write('\n')
+                                sys.stderr.flush()
+                        if g_args.dry_run > 0:
+                            now = time.time()
+                            if now - start_time > g_args.dry_run:
+                                is_timeout = True
+                                process.terminate()
+                                break
+                    sys.stdout.write('\n')
+                except KeyboardInterrupt:
+                    sys.stdout.write('\n')
+                    logging.info(f"Ctrl+C KeyboardInterrupt")
+                    sys.exit(1)
+                
+            else:
+                assert(False)
+                pass
+            if process:
+                process.wait()
+                if not is_timeout and process.returncode != 0:
+                    raise subprocess.CalledProcessError(process.returncode, cmd)
         
-        # process = subprocess.Popen(
-        #     cmd,
-        #     stderr=subprocess.STDOUT,
-        #     stdout=subprocess.PIPE,
-        #     universal_newlines=True, # 没法处理进度条的情况，\r 会被转换成 \n
-        # )
-        # for line in process.stdout:
-        #     print(line.strip())
-        #     pass
-        
-        process.wait()
-        if process.returncode != 0:
-            raise subprocess.CalledProcessError(process.returncode, cmd)
-        
-        logging.info(f"\n转码完成：{output_file}")
+        logging.info(f"转码完成：{output_file}")
     except subprocess.CalledProcessError as e:
-        logging.error(f"\n错误：转码失败 - 返回码 {e.returncode}")
+        logging.error(f"错误：转码失败 - 返回码 {e.returncode}")
         sys.exit(1)
 
 def find_mp4_files(directory: str) -> List[str]:
@@ -172,7 +307,7 @@ def find_mp4_files(directory: str) -> List[str]:
     mp4_files = []
     for root, _, files in os.walk(directory):
         for file in files:
-            if file.lower().endswith(('.mp4','.mkv','.avi','.wmv','.mov')):
+            if file.lower().endswith(g_exts):
                 mp4_files.append(os.path.join(root, file))
     return mp4_files
 
@@ -180,8 +315,8 @@ def process_file(input_file: str, out_dir: str):
     """处理单个视频文件"""
     # 检测编码格式
     codec = get_video_codec(input_file)
-    if codec == 'av1':
-        logging.info(f"跳过：{input_file} 已是 AV1 编码")
+    if (codec == 'av1' or 'hevc')and not g_args.overwrite:
+        logging.info(f"跳过：{input_file} 已是 AV1 or hevc 编码")
         return
 
     # 获取视频参数
@@ -190,43 +325,51 @@ def process_file(input_file: str, out_dir: str):
 
     # 生成输出路径
     filename_without_ext = Path(input_file).stem
-    output_file = os.path.join(out_dir, f"{filename_without_ext}.mp4")
+    output_file = os.path.join(out_dir, f"{filename_without_ext}{g_args.out_ext}")
+    if not g_args.overwrite and os.path.exists(output_file):
+        logging.warning(f"跳过：{input_file}. output_file exsit {output_file}")
+        return
     # output_file = os.path.join(out_dir, f"{filename_without_ext}.mkv")
 
     # 执行转码
-    logging.info(f"\n开始转码：{input_file}(视频高度: {height}p, 目标码率: {bitrate}kbps). Press Ctrl+C to interrupt.")
+    logging.info(f"开始转码：{input_file}(视频高度: {height}p, 目标码率: {bitrate}kbps). Press Ctrl+C to interrupt.")
     transcode_video(input_file, output_file, bitrate)
 
 def main():
+    global g_args
     parser = argparse.ArgumentParser(description="AV1 批量转码工具")
-    parser.add_argument("input_path", help="输入文件或目录路径")
-    parser.add_argument("--out_dir", help="输出目录（默认当前目录）", default=".")
-    args = parser.parse_args()
-
-    # 检查输入路径是否存在
-    if not os.path.exists(args.input_path):
-        logging.error(f"错误：路径不存在 - {args.input_path}")
-        sys.exit(1)
+    parser.add_argument("input_path", nargs='+', help="输入文件或目录路径")
+    parser.add_argument('-o', "--out-dir", default=g_args.out_dir, help="输出目录（默认当前目录）")
+    parser.add_argument('-f', "--overwrite", action='store_true', help="是否可以覆盖目标文件（默认 False）")
+    parser.add_argument('-b', "--set-bitrate", action='store_true', help="是否设置bitrate（默认 False）")
+    parser.add_argument('-n', "--dry-run", type=float, default=g_args.dry_run, help="指定每个文件试运行几秒，会忽略输出文件")
+    parser.add_argument('-no', "--dry-run-out", action='store_true', help="dry run 时是否输出文件（默认 False）")
+    parser.add_argument('-e', '--out-ext', default=g_args.out_ext, help=f'输出文件的编码，默认{g_args.out_ext}')
+    args:GArgs = parser.parse_args()
+    g_args = args
 
     # 获取待处理文件列表
-    if os.path.isfile(args.input_path):
-        files = [args.input_path]
-    else:
-        files = find_mp4_files(args.input_path)
-        if not files:
-            logging.error(f"错误：目录中未找到视频文件 - {args.input_path}")
-            sys.exit(1)
+    files:list[str]=[]
+    for input_path in g_args.input_path:
+        if os.path.isfile(input_path) and input_path.lower().endswith(g_exts):
+            files.append(input_path)
+        elif os.path.isdir(input_path):
+            t_files = find_mp4_files(input_path)
+            files.extend(t_files)
+    if not files:
+        logging.error(f"错误：未找到1个需要处理的视频文件")
+        sys.exit(1)
 
     # 创建输出目录（如果不存在）
-    os.makedirs(args.out_dir, exist_ok=True)
-    if not os.path.isdir(args.out_dir):
+    os.makedirs(g_args.out_dir, exist_ok=True)
+    if not os.path.isdir(g_args.out_dir):
         logging.error(f"out_dir is not dir {args.out_dir}")
         sys.exit(1)
 
     # 批量处理
     logging.info(f"找到 {len(files)} 个MP4文件\n")
     for file in files:
-        process_file(file, args.out_dir)
+        process_file(file, g_args.out_dir)
         print("")
     logging.info("全部处理完成")
 
