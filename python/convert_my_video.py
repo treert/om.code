@@ -13,18 +13,19 @@ from typing import IO, List
 import colorlog
 
 """
-代码基本是AI生成的。对话反馈调试花了大概4个小时，还是不熟练呀。
+代码几乎都是AI生成的。花了一天还多的时间进行调试组装。
+怎么说了，AI很强，但是也不万能。比如为了能获取 ffmpeg 的输出，支持进度条，AI给的方法不好。
 """
 
 @dataclass
 class GArgs:
     input_path:list[str] = field(default_factory=list)
     out_dir:str = '.'
-    set_bitrate: bool = False
+    set_bitrate: int = 0
     dry_run: float = 0
     dry_run_out: bool = False
     overwrite: bool = False
-    out_ext:str = '.mp4'
+    out_ext:str = '.mkv'
 
 g_args = GArgs()
 g_exts = ('.mp4', '.mkv', '.avi', '.rmvb', '.wmv', '.mov')
@@ -114,15 +115,24 @@ def get_video_duration(input_file):
 
 def time_to_seconds(time_str):
     """将时间字符串 (HH:MM:SS.ms) 转换为秒数"""
-    h, m, s = time_str.split(':')
-    return int(h) * 3600 + int(m) * 60 + float(s)
-
+    try:
+        h, m, s = time_str.split(':')
+        return int(h) * 3600 + int(m) * 60 + float(s)
+    except Exception:
+        return 0
+        pass
 def determine_bitrate(height):
     """根据视频高度确定目标码率（单位：kbps）"""
+    if g_args.set_bitrate > 0:
+        return g_args.set_bitrate
+    elif g_args.set_bitrate < 0:
+        return 0
+
+    # 1080p@3000k 以此为基准做缩放。
     if height <= 480:
-        return 1000   # 480p 或更低
+        return 500    # 480p 或更低
     elif height <= 720:
-        return 2000   # 720p
+        return 1200   # 720p
     elif height <= 1080:
         return 3000   # 1080p
     elif height <= 1440:
@@ -130,9 +140,8 @@ def determine_bitrate(height):
     else:
         return 8000   # 4K 或更高
 
-
 def print_pipe(stream:IO[bytes]):
-    """支持进度条"""
+    """输出流内容，支持进度条"""
     buffer = bytearray()  # 动态累积 bytes
     while True:
         byte = stream.read(1)  # 每次读取 1 字节
@@ -155,33 +164,69 @@ def print_pipe(stream:IO[bytes]):
 
 def transcode_video(input_file, output_file, bitrate):
     """使用 ffmpeg 进行转码（显示实时输出）"""
+    # 下面的这些设置需要搭配 av1_nvenc 使用
     cmd = [
         'ffmpeg',
-        # '-progress','pipe:1',# 效果不佳
-        # '-movflags', '+faststart', # 报错
+        # '-progress','pipe:1',                           # 效果不佳
+        # '-movflags', '+faststart',                      # 报错，没有用
+        # '-analyzeduration','200M',                      # 允许 FFmpeg 分析长达 analyzeduration 的数据来检测流信息
+        # '-probesize', '100M',                           # 允许 FFmpeg 读取前 probesize 的数据来探测格式
         '-i', input_file,
-        '-c:a', 'copy',# 音频直接复制好了。不大。
-        '-c:v', 'av1_nvenc',# 速度比 hevc_nvenc 快一倍
+
+        ## 元数据
+        # '-map_chapters', '0',                           # 复制所有章节数据
+        # '-map_metadata', '0',                           # 复制全局元数据
+        # '-map_metadata:s:v','0:s:v',                    # 复制视频流元数据
+        # '-map_metadata:s:a','0:s:a',                    # 复制音频流元数据
+        # '-map_metadata:s:s','0:s:s',                    # 复制字幕流元数据 如果没有数据，会报错，并且不能使用?来标记可选
+        # '-map_metadata:s:d','0:s:d',                    # 复制字幕流元数据
+        # '-metadata',f'title="{Path(input_file).stem}"', # 标题
+        # '-metadata',f'artist="one001"',                 # 作者
+        
+
+        #### 只编码第一个视频数据流，其他的全部copy。 可以运行成功。但是内容不对，冗余了
+        # '-map', '0', '-c', 'copy',
+        # '-map', '0:v:0', '-c:v:0', 'av1_nvenc',
+
+
+        #### 常规用法
+        # '-map', '0', '-map', '-0:v', '-c', 'copy',      # 复制除了视频之外的其他流 需要放在最前面。但是这样不符合正常视频的顺序。【错误用法】
+        
+        '-map', '0:v:0',                               # 选择第一个视频流
+        # '-map', '0:v',                                  # 选择所有的视频流
+        # '-pix_fmt','yuv420p',                           # conver流使用的像素格式（如 yuvj420p）已被弃用，需要这个，才不报错
+        # '-force_key_frames','00:00:01',                 # 想增加个预览封面的，但是没有用。安装了 k-lite 就有了。
+        '-c:v', 'av1_nvenc',                            #
         # '-c:v', 'hevc_nvenc',
         # '-c:v', 'h264_nvenc',
-        # '-rc', 'vbr', # 默认就是这样。其实没有必要
-        '-preset', 'p7',
-        # '-force_key_frames','00:00:01', # 想增加个预览封面的，但是没有用。windows的封面似乎只支持 h264 h265
+        # '-multipass', 'qres',                           # disabled(default),qres,fullres 似乎有用
+        '-rc', 'vbr',                                   # -1(default), constqp,vbr,cbr
+        '-preset', 'p7',                                # 最高质量
+        # '-b:v', f'{bitrate}k',                        
+
+        '-map', '0:a', '-c:a', 'copy',                  # 复制音频
+
+        '-map', '0:s?', '-c:s', 'copy',                 # 复制字幕
+
+        '-map', '0:t?', '-c:t', 'copy',                 # 复制附件
+        
+        '-map', '0:d?', '-c:d', 'copy',                 # 复制数据
+
+
+
         '-y'
     ]
-    if g_args.set_bitrate:
-        cmd.extend(('-b:v', f'{bitrate}k'))
+    if bitrate > 0:
+        cmd.extend(('-b:v', f'{bitrate}k'))             # 如果不设置，不知道 av1_nvenc 是怎么决定 bitrate 的，小文件输出反而变大了。
     else:
-        # cmd.extend(('-cq','23')) # 默认就是 0, 自动。不知道啥意思，越小越好
+        # cmd.extend(('-cq','23'))                        # default 0。仅在 -rc constqp 下生效。基本没用
         pass
     if g_args.dry_run > 0 and not g_args.dry_run_out:
         cmd.extend(('-f', 'null'))
-        # cmd.extend(('-t', f'{g_args.dry_run}'))
         cmd.append('-')
     else:
         cmd.append(output_file)
-    try:
-        # 实时显示 ffmpeg 输出
+    try: # call ffmpeg
         print(" ".join(cmd))
         print("")
         mode = 1
@@ -237,10 +282,10 @@ def transcode_video(input_file, output_file, bitrate):
                 total_duration = get_video_duration(input_file)
 
                 # 正则表达式匹配进度信息
-                time_pattern = re.compile(r'time=(\d+:\d+:\d+\.\d+)')
+                time_pattern = re.compile(r'time=(\d+:\d+:\d+\.\d+)') # time may be N/A
                 progress_pattern = re.compile(
-                    r'frame=\s*\d+\s+fps=\s*\d+\.?\d*\s+q=\s*[\d+-]+\.?\d*\s+'
-                    r'size=\s*[^ ]*\s+time=(\d+:\d+:\d+\.\d+)\s+'
+                    r'frame=\s*[^ ]+\s+fps=\s*[^ ]+\s+q=\s*[^ ]+\s+'
+                    r'size=\s*[^ ]+\s+time=([^ ]*)\s+'
                     # r'bitrate=\s*\d+\.?\d*kbits/s\s+speed=\s*\d+\.?\d*x'
                 )
 
@@ -332,18 +377,28 @@ def process_file(input_file: str, out_dir: str):
     # output_file = os.path.join(out_dir, f"{filename_without_ext}.mkv")
 
     # 执行转码
-    logging.info(f"开始转码：{input_file}(视频高度: {height}p, 目标码率: {bitrate}kbps). Press Ctrl+C to interrupt.")
+    logging.info(f"start_encode：{input_file}({codec}, {height}p, to {bitrate}kbps). Press Ctrl+C to interrupt.")
     transcode_video(input_file, output_file, bitrate)
 
 def main():
     global g_args
     parser = argparse.ArgumentParser(description="AV1 批量转码工具")
     parser.add_argument("input_path", nargs='+', help="输入文件或目录路径")
+
+    def add_option(*args, default:bool, action:str='nil',**kwargs):
+        help = kwargs.get('help','')
+        if default:
+            kwargs['help'] = f"(def True,set False) {help}"
+            parser.add_argument(*args, action='store_false', **kwargs)
+        else:
+            kwargs['help'] = f"(def False,set True) {help}"
+            parser.add_argument(*args, action='store_true', **kwargs)
+
     parser.add_argument('-o', "--out-dir", default=g_args.out_dir, help="输出目录（默认当前目录）")
-    parser.add_argument('-f', "--overwrite", action='store_true', help="是否可以覆盖目标文件（默认 False）")
-    parser.add_argument('-b', "--set-bitrate", action='store_true', help="是否设置bitrate（默认 False）")
+    add_option('-f', "--overwrite", default=g_args.overwrite, help="是否可以覆盖目标文件")
+    parser.add_argument('-b', "--set-bitrate", type=int, default=g_args.set_bitrate, help=f"set -b:v xk 0:auto_set,>0:set,<0:not_set (default){g_args.set_bitrate}")
     parser.add_argument('-n', "--dry-run", type=float, default=g_args.dry_run, help="指定每个文件试运行几秒，会忽略输出文件")
-    parser.add_argument('-no', "--dry-run-out", action='store_true', help="dry run 时是否输出文件（默认 False）")
+    add_option('-no', "--dry-run-out", default=g_args.dry_run, help="dry run 时是否输出文件")
     parser.add_argument('-e', '--out-ext', default=g_args.out_ext, help=f'输出文件的编码，默认{g_args.out_ext}')
     args:GArgs = parser.parse_args()
     g_args = args
@@ -357,8 +412,8 @@ def main():
             t_files = find_mp4_files(input_path)
             files.extend(t_files)
     if not files:
-        logging.error(f"错误：未找到1个需要处理的视频文件")
-        sys.exit(1)
+        logging.warning(f"错误：未找到1个需要处理的视频文件")
+        sys.exit(0)
 
     # 创建输出目录（如果不存在）
     os.makedirs(g_args.out_dir, exist_ok=True)
@@ -367,7 +422,7 @@ def main():
         sys.exit(1)
 
     # 批量处理
-    logging.info(f"找到 {len(files)} 个MP4文件\n")
+    logging.info(f"找到 {len(files)} 个视频文件\n")
     for file in files:
         process_file(file, g_args.out_dir)
         print("")
