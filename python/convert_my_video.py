@@ -5,6 +5,7 @@ import logging
 import os
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -65,6 +66,17 @@ def setup_colored_logging():
 
 setup_colored_logging()
 
+
+def format_cmds(cmds:list[str]):
+    """格式化命令数组，主要是对参数做空格分割。"""
+    ret = []
+    for it in cmds:
+        has_quote = '"' in it or "'" in it
+        if has_quote:
+            ret.append(it)
+        else:
+            ret.extend(it.split())
+    return ret
 
 def get_video_codec(input_file):
     """使用 ffprobe 检测视频编码格式"""
@@ -165,85 +177,89 @@ def print_pipe(stream:IO[bytes]):
 def transcode_video(input_file, output_file, bitrate):
     """使用 ffmpeg 进行转码（显示实时输出）"""
     # 下面的这些设置需要搭配 av1_nvenc 使用
-    cmd = [
+    cmds = [
         'ffmpeg',
-        # '-progress','pipe:1',                           # 效果不佳
-        # '-movflags', '+faststart',                      # 报错，没有用
-        # '-analyzeduration','200M',                      # 允许 FFmpeg 分析长达 analyzeduration 的数据来检测流信息
-        # '-probesize', '100M',                           # 允许 FFmpeg 读取前 probesize 的数据来探测格式
-        '-i', input_file,
+        ## 全局参数
+        '-y',                                           # 覆盖输出文件（无需确认）
+        # '-loglevel warning',                            # 设置日志级别
+        '-hide_banner',                                 # 隐藏 FFmpeg 版本信息
+        '-stats',                                       # 显示进度统计信息。会把进度信息输出到 stdout 里，默认是 stderr
 
-        ## 元数据
-        # '-map_chapters', '0',                           # 复制所有章节数据
-        # '-map_metadata', '0',                           # 复制全局元数据
-        # '-map_metadata:s:v','0:s:v',                    # 复制视频流元数据
-        # '-map_metadata:s:a','0:s:a',                    # 复制音频流元数据
-        # '-map_metadata:s:s','0:s:s',                    # 复制字幕流元数据 如果没有数据，会报错，并且不能使用?来标记可选
-        # '-map_metadata:s:d','0:s:d',                    # 复制字幕流元数据
-        # '-metadata',f'title="{Path(input_file).stem}"', # 标题
-        # '-metadata',f'artist="one001"',                 # 作者
+        # '-ss 00:01:00',                                 # 开始时间 说法: -i 之前，关键帧定位，速度更快；-i 后面，逐帧定位​​，更精确
+        '-i', input_file,
+        # '-t 60.5'                                       # 持续时间 推荐放在后面，逐帧定位​​
+        # '-to 00:02:00.500',                             # 结束时间 to = ss + t, 和 t 冲突
         
 
-        #### 只编码第一个视频数据流，其他的全部copy。 可以运行成功。但是内容不对，冗余了。而且顺序也不标准
-        # '-map', '0', '-c', 'copy',
-        # '-map', '0:v:0', '-c:v:0', 'av1_nvenc',
+        ## 零散的参数
+        # '-progress pipe:1',                           # 效果不佳
+        # '-movflags +faststart',                       # 报错，没有用
+        # '-analyzeduration 200M',                      # 允许 FFmpeg 分析长达 analyzeduration 的数据来检测流信息
+        # '-probesize 100M',                            # 允许 FFmpeg 读取前 probesize 的数据来探测格式
+
+        ## 元数据 折腾一圈
+        # '-map_chapters 0',                            # 复制所有章节数据
+        # '-map_metadata 0',                            # 复制全局元数据
+        # '-map_metadata:s:v 0:s:v',                    # 复制视频流元数据
+        # '-map_metadata:s:a 0:s:a',                    # 复制音频流元数据
+        # '-map_metadata:s:s 0:s:s',                    # 复制字幕流元数据 如果没有数据，会报错，并且不能使用?来标记可选
+        # '-map_metadata:s:d 0:s:d',                    # 复制字幕流元数据
+        # '-metadata',f'title="{Path(input_file).stem}"', # 标题
+        # '-metadata',f'artist="one001"',                 # 作者
     ]
 
     ## 按顺序复制 Stream
 
     ### 视频流
-    cmd.extend([
-        '-map', '0:v:0',                               # 复制视频 只一个
-        # '-map', '0:v',                                  # 选择所有的视频流
-        # '-pix_fmt','yuv420p',                           # conver流使用的像素格式（如 yuvj420p）已被弃用，需要这个，才不报错
-        # '-force_key_frames','00:00:01',                 # 想增加个预览封面的，但是没有用。安装了 k-lite 就有了。
-        '-c:v', 'av1_nvenc',
-        # '-c:v', 'hevc_nvenc',
-        # '-c:v', 'h264_nvenc',
-        '-multipass', 'qres',                           # disabled(default),qres,fullres 似乎有用
-        '-rc', 'vbr',                                   # -1(default), constqp,vbr,cbr
-        '-preset', 'p7',                                # 最高质量
+    cmds.extend([
+        '-map 0:v:0',                                   # 复制视频 只一个
+        # '-map 0:v',                                     # 选择所有的视频流
+        # '-pix_fmt yuv420p',                             # conver流使用的像素格式（如 yuvj420p）已被弃用，需要这个，才不报错
+        # '-force_key_frames 00:00:01',                   # 想增加个预览封面的，但是没有用。安装了 k-lite 就有了。
+        '-c:v av1_nvenc',                               # -c 这类的是输出选项，按理来说应该放在最后面，不过感觉放在这儿更好
+        '-multipass qres',                              # disabled(default),qres,fullres 似乎有用
+        '-rc vbr',                                      # -1(default), constqp,vbr,cbr
+        # '-cq 23'                                        # default 0。仅在 -rc constqp 下生效。基本没用
+        '-preset p7',                                   # 最高质量
     ])
     if bitrate > 0:
-        cmd.extend(('-b:v', f'{bitrate}k'))             # 如果不设置，不知道 av1_nvenc 是怎么决定 bitrate 的，小文件输出反而变大了。
-        # cmd.extend(('-minrate', f'{bitrate}k'))
-        # cmd.extend(('-maxrate', f'{bitrate}k'))
-        # cmd.extend(('-bufsize', f'{bitrate}k'))
-    else:
-        # cmd.extend(('-cq','23'))                        # default 0。仅在 -rc constqp 下生效。基本没用
-        pass
+        cmds.extend([
+            f'-b:v {bitrate}k',                         # 如果不设置，不知道 av1_nvenc 是怎么决定 bitrate 的，小文件输出反而变大了。
+            # f'-minrate {bitrate}k',
+            # f'-maxrate {bitrate}k',
+            # f'-bufsize {bitrate}k',                     # maxrate 可以持续的时间是 {bufsize/maxrate}s
+        ])
     
     ### 音频流
-    cmd.extend([
-        '-map', '0:a:0', '-c:a', 'copy',                  # 复制音频 只一个
+    cmds.extend([
+        '-map 0:a:0 -c:a copy',                         # 复制音频 只一个
     ])
 
     ### 其他流 只支持 mkv
     if g_args.out_ext == '.mkv':
-        cmd.extend([
-        '-map', '0:s?', '-c:s', 'copy',                 # 复制字幕
-        '-map', '0:t?', '-c:t', 'copy',                 # 复制附件
-        '-map', '0:d?', '-c:d', 'copy',                 # 复制数据
+        cmds.extend([
+            '-map 0:s? -c:s copy',                      # 复制字幕
+            '-map 0:t? -c:t copy',                      # 复制附件
+            '-map 0:d? -c:d copy',                      # 复制数据
         ])
 
     ## 设置输出文件
-    cmd.append('-y')                                   
     if g_args.dry_run > 0 and not g_args.dry_run_out:
-        cmd.extend(('-f', 'null'))
-        cmd.append('-')
+        cmds.append('-f null -')
     else:
-        cmd.append(output_file)
-    
+        cmds.append(output_file)
+
     ## call ffmpeg
+    cmds = format_cmds(cmds)
     try:
-        print(" ".join(cmd))
+        print(" ".join(cmds))
         print("")
         mode = 1
         if mode == 3:
             # 这个看上去最简单。
             try:
                 process = subprocess.run(
-                    cmd,
+                    cmds,
                     stdout=sys.stdout,       # 实时打印 stdout
                     stderr=sys.stderr,       # 实时打印 stderr
                     check=True,              # throw CalledProcessError if returncode != 0
@@ -255,7 +271,7 @@ def transcode_video(input_file, output_file, bitrate):
             except KeyboardInterrupt:# 有个缺点，会输出一段
                 print("") # 
                 logging.info(f"Ctrl+C KeyboardInterrupt")
-                raise subprocess.CalledProcessError(1, cmd)
+                raise subprocess.CalledProcessError(1, cmds)
         elif mode <= 2:
             # 这些模式没有支持 timeout，如果要实现需要在 loop 里计时
             process:subprocess.Popen = None
@@ -263,7 +279,7 @@ def transcode_video(input_file, output_file, bitrate):
             if mode == 2:
                 # AI给了这个方案，头大，明明有简单的方案。不支持 timeout，实现麻烦
                 process = subprocess.Popen(
-                    cmd,
+                    cmds,
                     stderr=subprocess.STDOUT,
                     stdout=subprocess.PIPE,
                     universal_newlines=False,  # 关闭文本模式 保留 \r（回车符）或其它控制字符（如进度条）
@@ -299,7 +315,7 @@ def transcode_video(input_file, output_file, bitrate):
                 )
 
                 process = subprocess.Popen(
-                    cmd,
+                    cmds,
                     stderr=subprocess.STDOUT,
                     stdout=subprocess.PIPE,
                     universal_newlines=True, # 没法处理进度条的情况，\r 会被转换成 \n
@@ -349,7 +365,7 @@ def transcode_video(input_file, output_file, bitrate):
             if process:
                 process.wait()
                 if not is_timeout and process.returncode != 0:
-                    raise subprocess.CalledProcessError(process.returncode, cmd)
+                    raise subprocess.CalledProcessError(process.returncode, cmds)
         
         logging.info(f"转码完成：{output_file}")
     except subprocess.CalledProcessError as e:
