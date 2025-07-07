@@ -184,49 +184,58 @@ def transcode_video(input_file, output_file, bitrate):
         # '-metadata',f'artist="one001"',                 # 作者
         
 
-        #### 只编码第一个视频数据流，其他的全部copy。 可以运行成功。但是内容不对，冗余了
+        #### 只编码第一个视频数据流，其他的全部copy。 可以运行成功。但是内容不对，冗余了。而且顺序也不标准
         # '-map', '0', '-c', 'copy',
         # '-map', '0:v:0', '-c:v:0', 'av1_nvenc',
+    ]
 
+    ## 按顺序复制 Stream
 
-        #### 常规用法
-        # '-map', '0', '-map', '-0:v', '-c', 'copy',      # 复制除了视频之外的其他流 需要放在最前面。但是这样不符合正常视频的顺序。【错误用法】
-        
-        '-map', '0:v:0',                               # 选择第一个视频流
+    ### 视频流
+    cmd.extend([
+        '-map', '0:v:0',                               # 复制视频 只一个
         # '-map', '0:v',                                  # 选择所有的视频流
         # '-pix_fmt','yuv420p',                           # conver流使用的像素格式（如 yuvj420p）已被弃用，需要这个，才不报错
         # '-force_key_frames','00:00:01',                 # 想增加个预览封面的，但是没有用。安装了 k-lite 就有了。
-        '-c:v', 'av1_nvenc',                            #
+        '-c:v', 'av1_nvenc',
         # '-c:v', 'hevc_nvenc',
         # '-c:v', 'h264_nvenc',
-        # '-multipass', 'qres',                           # disabled(default),qres,fullres 似乎有用
+        '-multipass', 'qres',                           # disabled(default),qres,fullres 似乎有用
         '-rc', 'vbr',                                   # -1(default), constqp,vbr,cbr
         '-preset', 'p7',                                # 最高质量
-        # '-b:v', f'{bitrate}k',                        
-
-        '-map', '0:a', '-c:a', 'copy',                  # 复制音频
-
-        '-map', '0:s?', '-c:s', 'copy',                 # 复制字幕
-
-        '-map', '0:t?', '-c:t', 'copy',                 # 复制附件
-        
-        '-map', '0:d?', '-c:d', 'copy',                 # 复制数据
-
-
-
-        '-y'
-    ]
+    ])
     if bitrate > 0:
         cmd.extend(('-b:v', f'{bitrate}k'))             # 如果不设置，不知道 av1_nvenc 是怎么决定 bitrate 的，小文件输出反而变大了。
+        # cmd.extend(('-minrate', f'{bitrate}k'))
+        # cmd.extend(('-maxrate', f'{bitrate}k'))
+        # cmd.extend(('-bufsize', f'{bitrate}k'))
     else:
         # cmd.extend(('-cq','23'))                        # default 0。仅在 -rc constqp 下生效。基本没用
         pass
+    
+    ### 音频流
+    cmd.extend([
+        '-map', '0:a:0', '-c:a', 'copy',                  # 复制音频 只一个
+    ])
+
+    ### 其他流 只支持 mkv
+    if g_args.out_ext == '.mkv':
+        cmd.extend([
+        '-map', '0:s?', '-c:s', 'copy',                 # 复制字幕
+        '-map', '0:t?', '-c:t', 'copy',                 # 复制附件
+        '-map', '0:d?', '-c:d', 'copy',                 # 复制数据
+        ])
+
+    ## 设置输出文件
+    cmd.append('-y')                                   
     if g_args.dry_run > 0 and not g_args.dry_run_out:
         cmd.extend(('-f', 'null'))
         cmd.append('-')
     else:
         cmd.append(output_file)
-    try: # call ffmpeg
+    
+    ## call ffmpeg
+    try:
         print(" ".join(cmd))
         print("")
         mode = 1
