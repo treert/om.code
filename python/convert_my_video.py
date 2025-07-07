@@ -14,8 +14,20 @@ from typing import IO, List
 import colorlog
 
 """
-代码几乎都是AI生成的。花了一天还多的时间进行调试组装。
-怎么说了，AI很强，但是也不万能。比如为了能获取 ffmpeg 的输出，支持进度条，AI给的方法不好。
+对于不同封装格式的处理
+- 公共的部分:
+    - encode 1 video to av1
+    - copy 1 audio                                          # 一些视频有多条音轨。想了想只选一条。
+- mkv:
+    - copy all subtitle, attachment, data
+    - set -metadata:s:v:0 BPS-eng={bitrate*1000}"         # mkv 这个数据默认是错误的
+- not mkv:
+    - copy all subtitle if safe.
+
+本来想默认使用 mkv，因为想保留字幕，mp4 对字幕的支持很拉。
+后来想想现在有AI语音识别和翻译了，似乎没必要还特别保留原始字幕。
+
+看 transcode_video 函数，可以看到许多参数的用法说明。
 """
 
 @dataclass
@@ -23,13 +35,15 @@ class GArgs:
     input_path:list[str] = field(default_factory=list)
     out_dir:str = '.'
     set_bitrate: int = 0
+    test_time:int = 0
     dry_run: float = 0
     dry_run_out: bool = False
     overwrite: bool = False
-    out_ext:str = '.mkv'
+    out_ext:str = '.mp4'   # 默认格式
+    log_debug:bool = False
 
 g_args = GArgs()
-g_exts = ('.mp4', '.mkv', '.avi', '.rmvb', '.wmv', '.mov')
+g_support_input_exts = ('.mp4', '.mkv', '.avi', '.rmvb', '.wmv', '.mov')
 
 # 配置日志系统
 # logging.basicConfig(
@@ -61,7 +75,8 @@ def setup_colored_logging():
     
     logger = colorlog.getLogger()
     logger.setLevel(logging.INFO)
-    logger.setLevel(logging.DEBUG)
+    if g_args.log_debug:
+        logger.setLevel(logging.DEBUG)
     logger.addHandler(console)
 
 setup_colored_logging()
@@ -71,11 +86,10 @@ def format_cmds(cmds:list[str]):
     """格式化命令数组，主要是对参数做空格分割。"""
     ret = []
     for it in cmds:
-        has_quote = '"' in it or "'" in it
-        if has_quote:
-            ret.append(it)
+        if it.startswith('-'):
+            ret.extend(it.split())  # 如果有错误的空格，可能会凉。不要那么做就行。
         else:
-            ret.extend(it.split())
+            ret.append(it)
     return ret
 
 def get_video_codec(input_file):
@@ -174,7 +188,7 @@ def print_pipe(stream:IO[bytes]):
             buffer.extend(byte)  # 累积字节
     pass
 
-def transcode_video(input_file, output_file, bitrate):
+def transcode_video(input_file, output_file, bitrate:int):
     """使用 ffmpeg 进行转码（显示实时输出）"""
     # 下面的这些设置需要搭配 av1_nvenc 使用
     cmds = [
@@ -189,24 +203,38 @@ def transcode_video(input_file, output_file, bitrate):
         '-i', input_file,
         # '-t 60.5'                                       # 持续时间 推荐放在后面，逐帧定位​​
         # '-to 00:02:00.500',                             # 结束时间 to = ss + t, 和 t 冲突
-        
 
-        ## 零散的参数
+        ### 一些没用的参数
         # '-progress pipe:1',                           # 效果不佳
         # '-movflags +faststart',                       # 报错，没有用
         # '-analyzeduration 200M',                      # 允许 FFmpeg 分析长达 analyzeduration 的数据来检测流信息
         # '-probesize 100M',                            # 允许 FFmpeg 读取前 probesize 的数据来探测格式
 
-        ## 元数据 折腾一圈
-        # '-map_chapters 0',                            # 复制所有章节数据
+        ## 元数据
+
+        ### copy metadata 折腾一圈，对于转码无用，转码后的一些元信息要变化的
+        # '-map_chapters 0',                            # 复制所有章节数据 黑客帝国动画版原始有两个 Menu, 对比元数据，发现就是 Chapter数据，但是这个指令没有用
         # '-map_metadata 0',                            # 复制全局元数据
         # '-map_metadata:s:v 0:s:v',                    # 复制视频流元数据
         # '-map_metadata:s:a 0:s:a',                    # 复制音频流元数据
         # '-map_metadata:s:s 0:s:s',                    # 复制字幕流元数据 如果没有数据，会报错，并且不能使用?来标记可选
         # '-map_metadata:s:d 0:s:d',                    # 复制字幕流元数据
-        # '-metadata',f'title="{Path(input_file).stem}"', # 标题
-        # '-metadata',f'artist="one001"',                 # 作者
+
+        ### set metadata
+        # '-metadata', f'title="{Path(input_file).stem}"', # 标题
+        # '-metadata', f'artist="one001"',                 # 作者
     ]
+
+    # 只测试编码前几秒
+    if g_args.test_time > 0:
+        cmds.append(f'-t {g_args.test_time}')
+
+    # mkv 的视频码率显示不准，必要时直接设置下
+    if bitrate > 0 and g_args.out_ext == '.mkv':
+        cmds.extend([
+            f'-metadata:s:v:0 BPS-eng={bitrate*1000}',
+            # '-metadata:s:v:0', f'bit_rate="{bitrate*1000}"', # 对mkv没有，错误的
+        ])
 
     ## 按顺序复制 Stream
 
@@ -226,22 +254,26 @@ def transcode_video(input_file, output_file, bitrate):
         cmds.extend([
             f'-b:v {bitrate}k',                         # 如果不设置，不知道 av1_nvenc 是怎么决定 bitrate 的，小文件输出反而变大了。
             # f'-minrate {bitrate}k',
-            # f'-maxrate {bitrate}k',
-            # f'-bufsize {bitrate}k',                     # maxrate 可以持续的时间是 {bufsize/maxrate}s
+            f'-maxrate {int(1.2*bitrate)}k',            # 对于直播或者在线视频有用，避免码率峰值太高。
+            f'-bufsize {int(2.4*bitrate)}k',            # maxrate 可以持续的时间是 {bufsize/maxrate}s
         ])
+
     
     ### 音频流
     cmds.extend([
-        '-map 0:a:0 -c:a copy',                         # 复制音频 只一个
+        '-map 0:a:0 -c:a copy',                         # 复制音频 只复制一条音频流
     ])
 
-    ### 其他流 只支持 mkv
+    ### mkv 复制 其他流 
     if g_args.out_ext == '.mkv':
         cmds.extend([
             '-map 0:s? -c:s copy',                      # 复制字幕
             '-map 0:t? -c:t copy',                      # 复制附件
             '-map 0:d? -c:d copy',                      # 复制数据
         ])
+    else:       # 其他格式以安全的方式复制字幕，其实就只有 mp4
+        if g_args.out_ext == Path(input_file).suffix:
+            cmds.append('-map 0:s? -c:s copy')
 
     ## 设置输出文件
     if g_args.dry_run > 0 and not g_args.dry_run_out:
@@ -307,7 +339,7 @@ def transcode_video(input_file, output_file, bitrate):
                 total_duration = get_video_duration(input_file)
 
                 # 正则表达式匹配进度信息
-                time_pattern = re.compile(r'time=(\d+:\d+:\d+\.\d+)') # time may be N/A
+                time_pattern = re.compile(r'time=(\d+:\d+:\d+\.\d+|N/A)') # time may be N/A
                 progress_pattern = re.compile(
                     r'frame=\s*[^ ]+\s+fps=\s*[^ ]+\s+q=\s*[^ ]+\s+'
                     r'size=\s*[^ ]+\s+time=([^ ]*)\s+'
@@ -326,12 +358,14 @@ def transcode_video(input_file, output_file, bitrate):
                 atexit.register(lambda: process.terminate())
                 try:
                     start_time = time.time()  # 记录开始时间
+                    last_is_time_line = False
                     for line in process.stdout:
                         line:str
                         line = line.rstrip('\n')
                         # 尝试匹配进度信息
-                        time_match = progress_pattern.search(line)
+                        time_match = time_pattern.search(line)
                         if time_match:
+                            last_is_time_line = True
                             current_time = time_match.group(1)
                             current_seconds = time_to_seconds(current_time)
                             
@@ -342,6 +376,9 @@ def transcode_video(input_file, output_file, bitrate):
                             sys.stdout.write(f"\r[{percent:3.0f}%] {line}")
                             sys.stdout.flush()
                         else:
+                            if last_is_time_line:
+                                sys.stderr.write('\n')
+                                last_is_time_line = False
                             if logging.getLogger().getEffectiveLevel() <= logging.DEBUG:
                                 # 普通日志信息直接输出
                                 sys.stderr.write(line)
@@ -353,7 +390,8 @@ def transcode_video(input_file, output_file, bitrate):
                                 is_timeout = True
                                 process.terminate()
                                 break
-                    sys.stdout.write('\n')
+                    if last_is_time_line:
+                        sys.stderr.write('\n')
                 except KeyboardInterrupt:
                     sys.stdout.write('\n')
                     logging.info(f"Ctrl+C KeyboardInterrupt")
@@ -377,7 +415,7 @@ def find_mp4_files(directory: str) -> List[str]:
     mp4_files = []
     for root, _, files in os.walk(directory):
         for file in files:
-            if file.lower().endswith(g_exts):
+            if file.lower().endswith(g_support_input_exts):
                 mp4_files.append(os.path.join(root, file))
     return mp4_files
 
@@ -413,17 +451,19 @@ def main():
     def add_option(*args, default:bool, action:str='nil',**kwargs):
         help = kwargs.get('help','')
         if default:
-            kwargs['help'] = f"(def True,set False) {help}"
+            kwargs['help'] = f"(default True, set False) {help}"
             parser.add_argument(*args, action='store_false', **kwargs)
         else:
-            kwargs['help'] = f"(def False,set True) {help}"
+            kwargs['help'] = f"(default False, set True) {help}"
             parser.add_argument(*args, action='store_true', **kwargs)
 
     parser.add_argument('-o', "--out-dir", default=g_args.out_dir, help="输出目录（默认当前目录）")
     add_option('-f', "--overwrite", default=g_args.overwrite, help="是否可以覆盖目标文件")
-    parser.add_argument('-b', "--set-bitrate", type=int, default=g_args.set_bitrate, help=f"set -b:v xk 0:auto_set,>0:set,<0:not_set (default){g_args.set_bitrate}")
-    parser.add_argument('-n', "--dry-run", type=float, default=g_args.dry_run, help="指定每个文件试运行几秒，会忽略输出文件")
-    add_option('-no', "--dry-run-out", default=g_args.dry_run, help="dry run 时是否输出文件")
+    parser.add_argument('-b', "--set-bitrate", type=int, default=g_args.set_bitrate, help=f"set -b:v xk 0:auto_set,>0:set,<0:not_set (default {g_args.set_bitrate})")
+    parser.add_argument('-t', "--test-time", type=int, default=g_args.test_time, help=f"只编码文件的前几秒 (default {g_args.set_bitrate})")
+    parser.add_argument('-n', "--dry-run", type=float, default=g_args.dry_run, help="kill ffmpeg if timeout. output to null.")
+    add_option('-no', "--dry-run-out", default=g_args.dry_run, help="output to file when dry-run")
+    add_option('-d', "--log-debug", default=g_args.log_debug, help="是否输出 debug 信息")
     parser.add_argument('-e', '--out-ext', default=g_args.out_ext, help=f'输出文件的编码，默认{g_args.out_ext}')
     args:GArgs = parser.parse_args()
     g_args = args
@@ -431,7 +471,7 @@ def main():
     # 获取待处理文件列表
     files:list[str]=[]
     for input_path in g_args.input_path:
-        if os.path.isfile(input_path) and input_path.lower().endswith(g_exts):
+        if os.path.isfile(input_path) and input_path.lower().endswith(g_support_input_exts):
             files.append(input_path)
         elif os.path.isdir(input_path):
             t_files = find_mp4_files(input_path)
