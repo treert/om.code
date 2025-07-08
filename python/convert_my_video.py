@@ -282,7 +282,7 @@ def transcode_video(input_file, output_file, bitrate:int):
         # '-pix_fmt yuv420p',                             # conver流使用的像素格式（如 yuvj420p）已被弃用，需要这个，才不报错
         # '-force_key_frames 00:00:01',                   # 想增加个预览封面的，但是没有用。安装了 k-lite 就有了。
         '-c:v av1_nvenc',                               # -c 这类的是输出选项，按理来说应该放在最后面，不过感觉放在这儿更好
-        '-multipass qres',                              # disabled(default),qres,fullres 似乎有用
+        '-multipass qres',                              # disabled(default),qres,fullres 好像有点用，这样设置不会变慢多少
         '-rc vbr',                                      # -1(default), constqp,vbr,cbr
         # '-cq 23'                                        # default 0。仅在 -rc constqp 下生效。基本没用
         '-preset p7',                                   # 最高质量
@@ -291,8 +291,8 @@ def transcode_video(input_file, output_file, bitrate:int):
         cmds.extend([
             f'-b:v {bitrate}k',                         # 如果不设置，不知道 av1_nvenc 是怎么决定 bitrate 的，小文件输出反而变大了。
             # f'-minrate {bitrate}k',
-            f'-maxrate {int(1.2*bitrate)}k',            # 对于直播或者在线视频有用，避免码率峰值太高。
-            f'-bufsize {int(2.4*bitrate)}k',            # maxrate 可以持续的时间是 {bufsize/maxrate}s
+            # f'-maxrate {int(1.2*bitrate)}k',            # 对于直播或者在线视频有用，避免码率峰值太高。【ai 推荐的这个太稳定了吧】
+            # f'-bufsize {int(2.4*bitrate)}k',            # maxrate 可以持续的时间是 {bufsize/maxrate}s
         ])
     
     ### 音频流 只复制一条音频流
@@ -326,7 +326,7 @@ def transcode_video(input_file, output_file, bitrate:int):
         # 其他格式以安全的方式复制字幕，其实就只有 mp4
         # if g_args.out_ext == Path(input_file).suffix:
         #     cmds.append('-map 0:s? -c:s copy')
-        # pass
+        pass
 
     ## 设置输出文件
     if g_args.dry_run > 0 and not g_args.dry_run_out:
