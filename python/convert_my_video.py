@@ -63,7 +63,7 @@ class GArgs:
     log_debug:bool = False
 
 g_args = GArgs()
-g_support_input_exts = ('.mp4', '.mkv', '.avi', '.rmvb', '.wmv', '.mov')
+g_support_input_exts = ('.mp4', '.mkv', '.avi', '.rmvb', '.wmv', '.mov', '.webm')
 g_support_output_exts = [".mp4", ".mkv", ".webm"]
 g_hq_codec = ['av1','hevc'] # 高级编码，默认这种输入文件不处理
 
