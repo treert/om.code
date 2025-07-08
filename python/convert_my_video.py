@@ -18,7 +18,7 @@ import colorlog
 - 公共的部分:
     - encode 1 video to av1
     - copy 1 audio                                          # 一些视频有多条音轨。想了想只选一条。
-    - reset all input metadata (现在没有这么做,还是先保留吧，多些垃圾数据而已)
+    - reset all input metadata                              # 转码后有些数据不对了，但是 ffmpeg 不会修改。故而直接清空掉好了
 - mkv:
     - copy all subtitle, attachment, data
     - set -metadata:s:v:0 BPS-eng={bitrate*1000}"         # 这个数据需要重新设置
@@ -27,6 +27,7 @@ import colorlog
     - set -metadata:s:v:0 BPS-eng={bitrate*1000}"         # 和mkv 一样
 - mp4:
     - encode audio to aac (现在没有这么做, 而是用的 copy)
+    - safe copy subtile (现在不复制，没有必要，有ai翻译工具)
 
 各个封装格式的问题
 - mkv: 
@@ -59,7 +60,7 @@ class GArgs:
     dry_run: float = 0
     dry_run_out: bool = False
     overwrite: bool = False
-    out_ext:str = '.mkv'   # 默认封装格式
+    out_ext:str = '.mp4'   # 默认封装格式
     log_debug:bool = False
 
 g_args = GArgs()
@@ -245,11 +246,11 @@ def transcode_video(input_file, output_file, bitrate:int):
         # '-map_chapters -1',                             # 剔除所有章节数据 ffprobe mp4 可能报错，算了，不要了
         # '-map_metadata -1',                             # 剔除所有元数据
         '-metadata', f'title={Path(input_file).stem}',    # 标题 有些title里有乱码，全部设置成文件名好了。放在
-        # '-metadata', f'artist=one001',                    # 作者
+        '-metadata', f'artist=one001',                    # 作者
         # '-fflags +genpts -write_tmcd 0',                # 原来想用来修复 mkv 元数据的，实际没用
     ]
 
-    # cmds.append('-map_metadata -1') # 愉快的决定了，删掉
+    cmds.append('-map_metadata -1') # 愉快的决定了，删掉
 
     ## 修正一些元数据
     if g_args.out_ext == '.mp4':
@@ -323,9 +324,9 @@ def transcode_video(input_file, output_file, bitrate:int):
         #     '-map -0:t',
         # ])
         # 其他格式以安全的方式复制字幕，其实就只有 mp4
-        if g_args.out_ext == Path(input_file).suffix:
-            cmds.append('-map 0:s? -c:s copy')
-        pass
+        # if g_args.out_ext == Path(input_file).suffix:
+        #     cmds.append('-map 0:s? -c:s copy')
+        # pass
 
     ## 设置输出文件
     if g_args.dry_run > 0 and not g_args.dry_run_out:
