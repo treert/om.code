@@ -18,19 +18,36 @@ import colorlog
 - 公共的部分:
     - encode 1 video to av1
     - copy 1 audio                                          # 一些视频有多条音轨。想了想只选一条。
+    - reset all input metadata                            # 无奈的选择
 - mkv:
     - copy all subtitle, attachment, data
-    - set -metadata:s:v:0 BPS-eng={bitrate*1000}"         # mkv 这个数据默认是错误的
-- not mkv:
-    - copy all subtitle if safe.
+    - set -metadata:s:v:0 BPS-eng={bitrate*1000}"         # 这个数据需要重新设置
+- webm:
+    - encode audio to opus                                # webm only support it
+    - set -metadata:s:v:0 BPS-eng={bitrate*1000}"         # 和mkv 一样
+- mp4:
+    - encode audio to aac (现在没有这么做, 而是用的 copy)
+
+各个封装格式的问题
+- mkv: 
+    - 编码后元数据好多都是错误的。而且还不能自动修复。【蛋疼的是元数据里有视频音频码率】
+- webm: mkv简化版
+    - 和mkv问题一样，元数据好些是错误的。
+    - 音频得编码成 opus (aac有专利)
+- mp4: 
+    - 字幕，章节信息之类的有问题。（视频，音频码率没问题，这些不是以元数据的方式存在）
+        - copy audio 时，音频码率可能也是错误的。
+    - 对音频的支持貌似有兼容问题（大公司利益斗争导致），最好编码成 aac
+        
+
+mkv 和 webm 没有把码率信息直接编码进流中，而是用元数据的方法补充的。对于直播来说很对，播放中途是可以修改码率的。
+
+在元数据这边折腾好久，有点想直接删掉好了。【愉快的决定了，删掉】
 
 本来想默认使用 mkv，因为想保留字幕，mp4 对字幕的支持很拉。
 后来想想现在有AI语音识别和翻译了，似乎没必要还特别保留原始字幕。
 
 PS1: 看 transcode_video 函数，可以看到许多参数的用法说明。
-PS2: 还有个 WebM, google 搞的开源格式
-     MKV的简化版（但其实相差很多，比如不支持字幕）。
-     与mp4的差别主要是音频标准格式不同， mp4: AAC WebM: Opus(aac有专利)
 """
 
 @dataclass
@@ -42,11 +59,13 @@ class GArgs:
     dry_run: float = 0
     dry_run_out: bool = False
     overwrite: bool = False
-    out_ext:str = '.mp4'   # 默认格式
+    out_ext:str = '.mkv'   # 默认封装格式
     log_debug:bool = False
 
 g_args = GArgs()
 g_support_input_exts = ('.mp4', '.mkv', '.avi', '.rmvb', '.wmv', '.mov')
+g_support_output_exts = [".mp4", ".mkv", ".webm"]
+g_hq_codec = ['av1','hevc'] # 高级编码，默认这种输入文件不处理
 
 # 配置日志系统
 # logging.basicConfig(
@@ -81,8 +100,6 @@ def setup_colored_logging():
     if g_args.log_debug:
         logger.setLevel(logging.DEBUG)
     logger.addHandler(console)
-
-setup_colored_logging()
 
 
 def format_cmds(cmds:list[str]):
@@ -170,7 +187,7 @@ def determine_bitrate(height):
         return 8000   # 4K 或更高
 
 def print_pipe(stream:IO[bytes]):
-    """输出流内容，支持进度条"""
+    """输出流内容，支持进度条, 这个函数先保留吧"""
     buffer = bytearray()  # 动态累积 bytes
     while True:
         byte = stream.read(1)  # 每次读取 1 字节
@@ -201,6 +218,7 @@ def transcode_video(input_file, output_file, bitrate:int):
         # '-loglevel warning',                            # 设置日志级别
         '-hide_banner',                                 # 隐藏 FFmpeg 版本信息
         '-stats',                                       # 显示进度统计信息。会把进度信息输出到 stdout 里，默认是 stderr
+        '-ignore_unknown',                              # 用途优先，只是 mp4 编码 hdmv_pgs_subtitle 时还是报错
 
         # '-ss 00:01:00',                                 # 开始时间 说法: -i 之前，关键帧定位，速度更快；-i 后面，逐帧定位​​，更精确
         '-i', input_file,
@@ -224,20 +242,35 @@ def transcode_video(input_file, output_file, bitrate:int):
         # '-map_metadata:s:d 0:s:d',                    # 复制字幕流元数据
 
         ### set metadata
-        # '-metadata', f'title="{Path(input_file).stem}"', # 标题
-        # '-metadata', f'artist="one001"',                 # 作者
+        # '-map_chapters -1',                             # 剔除所有章节数据 ffprobe mp4 可能报错，算了，不要了
+        # '-map_metadata -1',                             # 剔除所有元数据
+        '-metadata', f'title={Path(input_file).stem}',    # 标题 有些title里有乱码，全部设置成文件名好了。放在
+        '-metadata', f'artist=one001',                    # 作者
+        # '-fflags +genpts -write_tmcd 0',                # 原来想用来修复 mkv 元数据的，实际没用
     ]
+
+    cmds.append('-map_metadata -1') # 愉快的决定了，删掉
+
+    ## 修正一些元数据
+    if g_args.out_ext == '.mp4':
+        # cmds.append('-map_metadata -1')   # 清掉元数据 【有必要保留吗？】
+        # cmds.append('-map_chapters -1')   # 清掉章节数据。黑客帝国动画电影有两种章节数据，编码成 mp4 后 ffprobe 有个小错误输出 
+        pass
+    if g_args.out_ext in ('.mkv','.webm'):
+        # mkv 的视频码率显示不准，必要时直接设置下
+        if bitrate > 0:
+            cmds.extend([
+                f'-metadata:s:v:0 BPS-eng={bitrate*1000}',
+            ])
+        ## 下面的这些命令实际会删掉所有元信息，而不是指定类型的。
+        # cmds.append('-map_metadata:s:v -1')     # 需要重新编码视频
+        # if g_args.out_ext == '.webm':
+        #     cmds.append('-map_metadata:s:a -1') # webm 还需要额外编码音频
+        # cmds.append('-map_metadata 0') # 不管放在哪里都没用
 
     # 只测试编码前几秒
     if g_args.test_time > 0:
         cmds.append(f'-t {g_args.test_time}')
-
-    # mkv 的视频码率显示不准，必要时直接设置下
-    if bitrate > 0 and g_args.out_ext == '.mkv':
-        cmds.extend([
-            f'-metadata:s:v:0 BPS-eng={bitrate*1000}',
-            # '-metadata:s:v:0', f'bit_rate="{bitrate*1000}"', # 对mkv没有，错误的
-        ])
 
     ## 按顺序复制 Stream
 
@@ -260,12 +293,20 @@ def transcode_video(input_file, output_file, bitrate:int):
             f'-maxrate {int(1.2*bitrate)}k',            # 对于直播或者在线视频有用，避免码率峰值太高。
             f'-bufsize {int(2.4*bitrate)}k',            # maxrate 可以持续的时间是 {bufsize/maxrate}s
         ])
-
     
-    ### 音频流
-    cmds.extend([
-        '-map 0:a:0 -c:a copy',                         # 复制音频 只复制一条音频流
-    ])
+    ### 音频流 只复制一条音频流
+    if g_args.out_ext == '.webm':
+        cmds.extend([
+            '-map 0:a:0 -c:a libopus',
+        ])
+    elif g_args.out_ext == '.mp4':
+        cmds.extend([
+            '-map 0:a:0 -c:a copy', # 按理来说应该用 aac
+        ])
+    else:
+        cmds.extend([
+            '-map 0:a:0 -c:a copy',
+        ])
 
     ### mkv 复制 其他流 
     if g_args.out_ext == '.mkv':
@@ -274,9 +315,17 @@ def transcode_video(input_file, output_file, bitrate:int):
             '-map 0:t? -c:t copy',                      # 复制附件
             '-map 0:d? -c:d copy',                      # 复制数据
         ])
-    else:       # 其他格式以安全的方式复制字幕，其实就只有 mp4
+    else:
+        # 忽略所有其他数据
+        # cmds.extend([
+        #     '-sn',
+        #     '-dn',
+        #     '-map -0:t',
+        # ])
+        # 其他格式以安全的方式复制字幕，其实就只有 mp4
         if g_args.out_ext == Path(input_file).suffix:
             cmds.append('-map 0:s? -c:s copy')
+        pass
 
     ## 设置输出文件
     if g_args.dry_run > 0 and not g_args.dry_run_out:
@@ -290,8 +339,7 @@ def transcode_video(input_file, output_file, bitrate:int):
         print(" ".join(cmds))
         print("")
         mode = 1
-        if mode == 3:
-            # 这个看上去最简单。
+        if mode == 2: # 最简单的方案。把子进程的输出定向到当前进程
             try:
                 process = subprocess.run(
                     cmds,
@@ -306,108 +354,75 @@ def transcode_video(input_file, output_file, bitrate:int):
             except KeyboardInterrupt:# 有个缺点，会输出一段
                 print("") # 
                 logging.info(f"Ctrl+C KeyboardInterrupt")
-                raise subprocess.CalledProcessError(1, cmds)
-        elif mode <= 2:
-            # 这些模式没有支持 timeout，如果要实现需要在 loop 里计时
+                sys.exit(1)
+        elif mode == 1: # 文本模式，需要自己处理进度条
+            # 第一次尝试
             process:subprocess.Popen = None
             is_timeout = False
-            if mode == 2:
-                # AI给了这个方案，头大，明明有简单的方案。不支持 timeout，实现麻烦
-                process = subprocess.Popen(
-                    cmds,
-                    stderr=subprocess.STDOUT,
-                    stdout=subprocess.PIPE,
-                    universal_newlines=False,  # 关闭文本模式 保留 \r（回车符）或其它控制字符（如进度条）
-                    bufsize=0,
-                )
+            # 获取视频总时长
+            total_duration = get_video_duration(input_file)
 
-                # def kill_child():
-                #     process.terminate()  # 或 proc.kill()
-                # atexit.register(kill_child)  # 父进程退出时触发
-                atexit.register(lambda: process.terminate())
+            # 正则表达式匹配进度信息
+            time_pattern = re.compile(r'time=(\d+:\d+:\d+\.\d+|N/A)') # time may be N/A
 
-                try:
-                    print_pipe(process.stdout)
-                except KeyboardInterrupt:
-                    print("") # 
-                    logging.info(f"Ctrl+C KeyboardInterrupt")
-                    sys.exit(1)
-                except Exception as e:
-                    print("") # 
-                    logging.error(f"未知错误：{e}")
-                    process.terminate()
-            elif mode == 1:
-                # 第一次尝试，开始时无法处理进度条。后为了定制自己的进度条，这个反而是最佳的了
-                # 获取视频总时长
-                total_duration = get_video_duration(input_file)
+            process = subprocess.Popen(
+                cmds,
+                stderr=subprocess.STDOUT,
+                stdout=subprocess.PIPE,
+                universal_newlines=True, # 没法处理进度条的情况，\r 会被转换成 \n
+                encoding='utf-8',
+                errors='ignore',        # 忽略字符编码错误
+                bufsize=1,
+            )
+            atexit.register(lambda: process.terminate()) # 避免意外情况
+            try:
+                start_time = time.time()  # 记录开始时间
+                last_is_time_line = False
+                for line in process.stdout:
+                    line:str
+                    line = line.rstrip('\n')
+                    # 尝试匹配进度信息
+                    time_match = time_pattern.search(line)
+                    if time_match:
+                        last_is_time_line = True
+                        current_time = time_match.group(1)
+                        current_seconds = time_to_seconds(current_time)
+                        
+                        # 计算百分比
+                        percent = min(100, (current_seconds / total_duration) * 100)
+                        
+                        # 在原始进度信息前添加百分比
+                        sys.stdout.write(f"\r[{percent:3.0f}%] {line}")
+                        sys.stdout.flush()
+                    else:
+                        if last_is_time_line:
+                            sys.stderr.write('\n')
+                            last_is_time_line = False
+                        # if logging.getLogger().getEffectiveLevel() <= logging.DEBUG:
+                        if g_args.log_debug:
+                            # 普通日志信息直接输出
+                            sys.stderr.write(line)
+                            sys.stderr.write('\n')
+                            sys.stderr.flush()
+                    if g_args.dry_run > 0:
+                        now = time.time()
+                        if now - start_time > g_args.dry_run:
+                            is_timeout = True
+                            process.terminate()
+                            break
+                if last_is_time_line:
+                    sys.stderr.write('\n')
+            except KeyboardInterrupt:
+                sys.stdout.write('\n')
+                logging.info(f"Ctrl+C KeyboardInterrupt")
+                sys.exit(1)
+            process.wait()
+            if not is_timeout and process.returncode != 0:
+                raise subprocess.CalledProcessError(process.returncode, cmds)
+        else:
+            assert(False)
+            pass
 
-                # 正则表达式匹配进度信息
-                time_pattern = re.compile(r'time=(\d+:\d+:\d+\.\d+|N/A)') # time may be N/A
-                progress_pattern = re.compile(
-                    r'frame=\s*[^ ]+\s+fps=\s*[^ ]+\s+q=\s*[^ ]+\s+'
-                    r'size=\s*[^ ]+\s+time=([^ ]*)\s+'
-                    # r'bitrate=\s*\d+\.?\d*kbits/s\s+speed=\s*\d+\.?\d*x'
-                )
-
-                process = subprocess.Popen(
-                    cmds,
-                    stderr=subprocess.STDOUT,
-                    stdout=subprocess.PIPE,
-                    universal_newlines=True, # 没法处理进度条的情况，\r 会被转换成 \n
-                    encoding='utf-8',
-                    errors='ignore',
-                    bufsize=1,
-                )
-                atexit.register(lambda: process.terminate())
-                try:
-                    start_time = time.time()  # 记录开始时间
-                    last_is_time_line = False
-                    for line in process.stdout:
-                        line:str
-                        line = line.rstrip('\n')
-                        # 尝试匹配进度信息
-                        time_match = time_pattern.search(line)
-                        if time_match:
-                            last_is_time_line = True
-                            current_time = time_match.group(1)
-                            current_seconds = time_to_seconds(current_time)
-                            
-                            # 计算百分比
-                            percent = min(100, (current_seconds / total_duration) * 100)
-                            
-                            # 在原始进度信息前添加百分比
-                            sys.stdout.write(f"\r[{percent:3.0f}%] {line}")
-                            sys.stdout.flush()
-                        else:
-                            if last_is_time_line:
-                                sys.stderr.write('\n')
-                                last_is_time_line = False
-                            if logging.getLogger().getEffectiveLevel() <= logging.DEBUG:
-                                # 普通日志信息直接输出
-                                sys.stderr.write(line)
-                                sys.stderr.write('\n')
-                                sys.stderr.flush()
-                        if g_args.dry_run > 0:
-                            now = time.time()
-                            if now - start_time > g_args.dry_run:
-                                is_timeout = True
-                                process.terminate()
-                                break
-                    if last_is_time_line:
-                        sys.stderr.write('\n')
-                except KeyboardInterrupt:
-                    sys.stdout.write('\n')
-                    logging.info(f"Ctrl+C KeyboardInterrupt")
-                    sys.exit(1)
-                
-            else:
-                assert(False)
-                pass
-            if process:
-                process.wait()
-                if not is_timeout and process.returncode != 0:
-                    raise subprocess.CalledProcessError(process.returncode, cmds)
-        
         logging.info(f"转码完成：{output_file}")
     except subprocess.CalledProcessError as e:
         logging.error(f"错误：转码失败 - 返回码 {e.returncode}")
@@ -426,8 +441,8 @@ def process_file(input_file: str, out_dir: str):
     """处理单个视频文件"""
     # 检测编码格式
     codec = get_video_codec(input_file)
-    if (codec == 'av1' or 'hevc')and not g_args.overwrite:
-        logging.info(f"跳过：{input_file} 已是 AV1 or hevc 编码")
+    if not g_args.overwrite and (codec in g_hq_codec):
+        logging.info(f"跳过：{input_file} 已是高级编码:{codec}")
         return
 
     # 获取视频参数
@@ -461,15 +476,17 @@ def main():
             parser.add_argument(*args, action='store_true', **kwargs)
 
     parser.add_argument('-o', "--out-dir", default=g_args.out_dir, help="输出目录（默认当前目录）")
-    add_option('-f', "--overwrite", default=g_args.overwrite, help="是否可以覆盖目标文件")
+    add_option('-f', "--overwrite", default=g_args.overwrite, help="是否强制转码，无视：输入文件是高级编码，输出文件已经存在")
     parser.add_argument('-b', "--set-bitrate", type=int, default=g_args.set_bitrate, help=f"set -b:v xk 0:auto_set,>0:set,<0:not_set (default {g_args.set_bitrate})")
     parser.add_argument('-t', "--test-time", type=int, default=g_args.test_time, help=f"只编码文件的前几秒 (default {g_args.set_bitrate})")
     parser.add_argument('-n', "--dry-run", type=float, default=g_args.dry_run, help="kill ffmpeg if timeout. output to null.")
-    add_option('-no', "--dry-run-out", default=g_args.dry_run, help="output to file when dry-run")
+    add_option('-no', "--dry-run-out", default=g_args.dry_run_out, help="output to file when dry-run")
     add_option('-d', "--log-debug", default=g_args.log_debug, help="是否输出 debug 信息")
-    parser.add_argument('-e', '--out-ext', default=g_args.out_ext, help=f'输出文件的编码，默认{g_args.out_ext}')
+    parser.add_argument('-e', '--out-ext', type=str, choices=g_support_output_exts,default=g_args.out_ext, help=f'输出文件的封住格式，默认{g_args.out_ext}')
     args:GArgs = parser.parse_args()
     g_args = args
+
+    setup_colored_logging()
 
     # 获取待处理文件列表
     files:list[str]=[]
