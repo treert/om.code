@@ -27,7 +27,10 @@ import colorlog
 本来想默认使用 mkv，因为想保留字幕，mp4 对字幕的支持很拉。
 后来想想现在有AI语音识别和翻译了，似乎没必要还特别保留原始字幕。
 
-看 transcode_video 函数，可以看到许多参数的用法说明。
+PS1: 看 transcode_video 函数，可以看到许多参数的用法说明。
+PS2: 还有个 WebM, google 搞的开源格式
+     MKV的简化版（但其实相差很多，比如不支持字幕）。
+     与mp4的差别主要是音频标准格式不同， mp4: AAC WebM: Opus(aac有专利)
 """
 
 @dataclass
