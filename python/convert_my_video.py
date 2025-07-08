@@ -18,7 +18,7 @@ import colorlog
 - 公共的部分:
     - encode 1 video to av1
     - copy 1 audio                                          # 一些视频有多条音轨。想了想只选一条。
-    - reset all input metadata                              # 转码后有些数据不对了，但是 ffmpeg 不会修改。故而直接清空掉好了
+    - reset all input metadata 【还是保留了，有些有用】       # 转码后有些数据不对了，但是 ffmpeg 不会修改。
 - mkv:
     - copy all subtitle, attachment, data
     - set -metadata:s:v:0 BPS-eng={bitrate*1000}"         # 这个数据需要重新设置
@@ -246,11 +246,11 @@ def transcode_video(input_file, output_file, bitrate:int):
         # '-map_chapters -1',                             # 剔除所有章节数据 ffprobe mp4 可能报错，算了，不要了
         # '-map_metadata -1',                             # 剔除所有元数据
         '-metadata', f'title={Path(input_file).stem}',    # 标题 有些title里有乱码，全部设置成文件名好了。放在
-        '-metadata', f'artist=one001',                    # 作者
+        # '-metadata', f'artist=one001',                    # 作者
         # '-fflags +genpts -write_tmcd 0',                # 原来想用来修复 mkv 元数据的，实际没用
     ]
 
-    cmds.append('-map_metadata -1') # 愉快的决定了，删掉
+    # cmds.append('-map_metadata -1') # 愉快的决定了，删掉
 
     ## 修正一些元数据
     if g_args.out_ext == '.mp4':
