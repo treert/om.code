@@ -228,7 +228,6 @@ def transcode_video(input_file, output_file, bitrate:int):
 
         ### 一些没用的参数
         # '-progress pipe:1',                           # 效果不佳
-        # '-movflags +faststart',                       # 报错，没有用
         # '-analyzeduration 200M',                      # 允许 FFmpeg 分析长达 analyzeduration 的数据来检测流信息
         # '-probesize 100M',                            # 允许 FFmpeg 读取前 probesize 的数据来探测格式
 
@@ -257,7 +256,8 @@ def transcode_video(input_file, output_file, bitrate:int):
         # cmds.append('-map_metadata -1')   # 清掉元数据 【有必要保留吗？】
         # cmds.append('-map_chapters -1')   # 清掉章节数据。黑客帝国动画电影有两种章节数据，编码成 mp4 后 ffprobe 有个小错误输出 
         pass
-    if g_args.out_ext in ('.mkv','.webm'):
+    # if g_args.out_ext in ('.mkv','.webm'):
+    if True: # 不管什么类型，都设置下，也没啥坏处。
         # mkv 的视频码率显示不准，必要时直接设置下
         if bitrate > 0:
             cmds.extend([
@@ -327,6 +327,16 @@ def transcode_video(input_file, output_file, bitrate:int):
         # if g_args.out_ext == Path(input_file).suffix:
         #     cmds.append('-map 0:s? -c:s copy')
         pass
+
+    ## 输出文件的参数
+
+    ### 在 mp4 开头放置 moovinfo. 据说可以加快播放开始速度。测试下来，本地播放和在共享服务器上播放没什么变化，都很快。
+    ### 副作用：需要在编码完成后，再次移动所有数据，然后在开头插入 moov info，这样磁盘存在IO问题。就不开启了。（也没测试过）
+    if g_args.out_ext == '.mp4':
+        cmds.extend([
+            # '-movflags faststart',                       # move moov info to head.
+            # '-movflags +faststart',                      # 在文件开头冗余一份 moov info
+        ])
 
     ## 设置输出文件
     if g_args.dry_run > 0 and not g_args.dry_run_out:
