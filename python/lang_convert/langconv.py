@@ -1,19 +1,18 @@
-﻿#!/usr/bin/env python
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 from copy import deepcopy
 import re
 
-try:
-    import psyco
-    psyco.full()
-except:
-    pass
+# python 2 遗留的
+# try:
+#     import psyco
+#     psyco.full()
+# except:
+#     pass
 
-try:
-    from zh_wiki import zh2Hant, zh2Hans
-except ImportError:
-    from zhtools.zh_wiki import zh2Hant, zh2Hans
+
+from zh_wiki import zh2Hant, zh2Hans
 
 import sys
 py3k = sys.version_info >= (3, 0, 0)
@@ -239,38 +238,34 @@ del zh2Hant, zh2Hans
 
 def run():
     import sys
-    from optparse import OptionParser
-    parser = OptionParser()
-    parser.add_option('-e', type='string', dest='encoding',
-            help='encoding')
-    parser.add_option('-f', type='string', dest='file_in',
-            help='input file (- for stdin)')
-    parser.add_option('-t', type='string', dest='file_out',
-            help='output file')
-    (options, args) = parser.parse_args()
-    if not options.encoding:
-        parser.error('encoding must be set')
-    if options.file_in:
-        if options.file_in == '-':
+    import argparse
+    parser = argparse.ArgumentParser(description='Chinese text converter between simplified and traditional characters')
+    parser.add_argument('-e', '--encoding', type=str, required=True, help='Target encoding (zh-hans or zh-hant)')
+    parser.add_argument('-f', '--file_in', type=str, help='Input file path (use - for stdin)')
+    parser.add_argument('-t', '--file_out', type=str, help='Output file path')
+    args = parser.parse_args()
+
+    if args.file_in:
+        if args.file_in == '-':
             file_in = sys.stdin
         else:
-            file_in = open(options.file_in)
+            file_in = open(args.file_in)
     else:
         file_in = sys.stdin
-    if options.file_out:
-        if options.file_out == '-':
+
+    if args.file_out:
+        if args.file_out == '-':
             file_out = sys.stdout
         else:
-            file_out = open(options.file_out, 'wb')
+            file_out = open(args.file_out, 'wb')
     else:
         file_out = sys.stdout
 
-    c = Converter(options.encoding)
+    c = Converter(args.encoding)
     for line in file_in:
-        print c.convert(line.decode('gbk'))
+        print(c.convert(line.decode('gbk')))
         file_out.write(c.convert(line.decode('utf8')).encode('utf8'))
 
 
 if __name__ == '__main__':
     run()
-
