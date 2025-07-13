@@ -1,13 +1,15 @@
 ## 使用 workspace and module 来管理代码
 ```sh
-# 新建工作区目录 workspace
-mkdir go
-cd go
+# 新建工作区目录 gowork
+mkdir gowork
+cd gowork
 
 # 在 workspace 下面初始化一个模块 mypkg
 mkdir mypkg
 cd mypkg
 go mod init mypkg
+
+cd .. # 返回 gowork
 
 # 在 workspace 目录下创建工作区
 # 这个命令在 workspace 目录下生成了一个 go.work 文件
@@ -16,8 +18,10 @@ go work init ./mypkg
 
 # 在 workspace 目录下克隆第二个模块 myutils，并将这个模块和工作区关联
 mkdir myutils
-cd world
+cd myutils
 go mod init myutils
+
+cd .. # 返回 gowork
 
 # 回到 workspace 目录下将第二个模块 myutils 和工作区关联
 go work use ./myutils

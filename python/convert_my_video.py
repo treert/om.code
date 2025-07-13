@@ -1,6 +1,7 @@
 import argparse
 import atexit
 from dataclasses import dataclass, field
+from datetime import datetime
 import logging
 import os
 from pathlib import Path
@@ -48,20 +49,49 @@ mkv 和 webm 没有把码率信息直接编码进流中，而是用元数据的�
 本来想默认使用 mkv，因为想保留字幕，mp4 对字幕的支持很拉。
 后来想想现在有AI语音识别和翻译了，似乎没必要还特别保留原始字幕。
 
-PS1: 看 transcode_video 函数，可以看到许多参数的用法说明。
+
+---------------------- 遇到的一些问题
+1. 可变帧率mp4 编码后的文件播放时周期的有卡顿感。豆包最后给了方案，先转换成恒定帧率的视频。Bash 脚本
+ffmpeg -i input_vfr.mp4 \
+  -r $(ffprobe -v error -select_streams v:0 -show_entries stream=avg_frame_rate -of default=noprint_wrappers=1:nokey=1 input_vfr.mp4) \
+  -c:v copy \
+  -af aresample=async=1 -c:a aac \  # 让声音和画面同步，对于 可变帧率的wmv可能有用 
+  output_cfr.mp4
+
+----------------------- 码率
+当前的avi_nvenc 默认是 2000k 不随输入分辨率或码率变化。
+自动设置时在 determine_bitrate 根据帧高度给不同的码率。
+
+码率最好还是更加输入文件类型单独设置，这儿列一个比例表。
+
+1080p   AV1     H265    H264    
+AV1     100     165     280
+H265    60      100     165
+H264    35      60      100
+
+1080p 60fps 比 30fps 要 +40% 作用
+
+下载的一些 1080p 的视频 h265编码，码率不足1000k，效果还可以，就离谱。
+
+----------------------- 其他
+transcode_video 函数，可以看到许多参数的用法说明。
+
 """
+
+
 
 @dataclass
 class GArgs:
     input_path:list[str] = field(default_factory=list)
     out_dir:str = '.'
-    set_bitrate: int = 0
+    set_bitrate: int = -1 # 0:auto_set see determine_bitrate, >0:set, <0:not_set (2000k). 
     test_time:int = 0
     dry_run: float = 0
     dry_run_out: bool = False
     overwrite: bool = False
     out_ext:str = '.mp4'   # 默认封装格式
     log_debug:bool = False
+    faststart:bool = False  # -movflags faststart，缺点：1. ctrl+c 中断编码，mp4损坏。【似乎没什么好处呢】
 
 g_args = GArgs()
 g_support_input_exts = ('.mp4', '.mkv', '.avi', '.rmvb', '.wmv', '.mov', '.webm')
@@ -74,8 +104,8 @@ g_hq_codec = ['av1','hevc'] # 高级编码，默认这种输入文件不处理
 #     format='%(asctime)s - %(levelname)s - %(message)s',
 #     stream=sys.stdout,# 默认是 stderr
 # )
-
-def setup_colored_logging():
+logger = colorlog.getLogger()
+def setup_colored_logger():
     """配置彩色日志输出"""
     formatter = colorlog.ColoredFormatter(
         '%(log_color)som-log: %(asctime)s %(levelname)-8s %(message)s%(reset)s',
@@ -91,12 +121,10 @@ def setup_colored_logging():
         style='%',
         # stream=sys.stdout,# 默认是 stderr 没有用
     )
-    
+    # console handler
     console = colorlog.StreamHandler(sys.stdout) # 不传参数，会输出到 sys.stderr 里
     console.setFormatter(formatter)
     
-    
-    logger = colorlog.getLogger()
     logger.setLevel(logging.INFO)
     if g_args.log_debug:
         logger.setLevel(logging.DEBUG)
@@ -125,10 +153,10 @@ def get_video_codec(input_file):
     ]
     try:
         codec = subprocess.check_output(cmd).decode('utf-8').strip().lower()
-        logging.debug(f"get_video_codec {codec}")
+        logger.debug(f"get_video_codec {codec}")
         return codec
     except subprocess.CalledProcessError as e:
-        logging.error(f"错误：无法检测视频编码 - {e}")
+        logger.error(f"错误：无法检测视频编码 - {e}")
         sys.exit(1)
 
 def get_video_height(input_file):
@@ -146,7 +174,7 @@ def get_video_height(input_file):
         height = int(cmd_out)
         return height
     except subprocess.CalledProcessError as e:
-        logging.error(f"错误：无法获取视频高度 - {e}")
+        logger.error(f"错误：无法获取视频高度 - {e}")
         sys.exit(1)
 
 def get_video_duration(input_file):
@@ -175,13 +203,13 @@ def determine_bitrate(height):
     elif g_args.set_bitrate < 0:
         return 0
 
-    # 1080p@3000k 以此为基准做缩放。
+    # Netflix AV1 推荐码率表​
     if height <= 480:
         return 500    # 480p 或更低
     elif height <= 720:
         return 1200   # 720p
     elif height <= 1080:
-        return 3000   # 1080p
+        return 2500   # 1080p 最早设置的 3000k
     elif height <= 1440:
         return 5000   # 2K
     else:
@@ -219,11 +247,13 @@ def transcode_video(input_file, output_file, bitrate:int):
         # '-loglevel warning',                            # 设置日志级别
         '-hide_banner',                                 # 隐藏 FFmpeg 版本信息
         '-stats',                                       # 显示进度统计信息。会把进度信息输出到 stdout 里，默认是 stderr
-        '-ignore_unknown',                              # 用途优先，只是 mp4 编码 hdmv_pgs_subtitle 时还是报错
+        # '-ignore_unknown',                              # 用途优先，只是 mp4 编码 hdmv_pgs_subtitle 时还是报错
 
-        # '-ss 00:01:00',                                 # 开始时间 说法: -i 之前，关键帧定位，速度更快；-i 后面，逐帧定位​​，更精确
         '-i', input_file,
-        # '-t 60.5'                                       # 持续时间 推荐放在后面，逐帧定位​​
+        ### 切片参数
+        # 切片的同时转码，可能导致输出的视频周期性的卡顿。
+        # '-ss 00:01:00',                                 # 开始时间 说法: -i 之前，关键帧定位，速度更快。【但是输入视频是可变帧率时会出现卡顿现象（放后面也不行，头大）】
+        # '-t 60.5'                                       # 持续时间 推荐放在后面，逐帧定位​​​，更精确。
         # '-to 00:02:00.500',                             # 结束时间 to = ss + t, 和 t 冲突
 
         ### 一些没用的参数
@@ -246,7 +276,7 @@ def transcode_video(input_file, output_file, bitrate:int):
         # '-map_metadata -1',                             # 剔除所有元数据
         '-metadata', f'title={Path(input_file).stem}',    # 标题 有些title里有乱码，全部设置成文件名好了。放在
         # '-metadata', f'artist=one001',                    # 作者
-        # '-fflags +genpts -write_tmcd 0',                # 原来想用来修复 mkv 元数据的，实际没用
+        # '-fflags +genpts -write_tmcd 0',                # 原来想用来修复 mkv 元数据的，实际没用. +genpts 好像可以修复时间戳
     ]
 
     # cmds.append('-map_metadata -1') # 愉快的决定了，删掉
@@ -283,9 +313,9 @@ def transcode_video(input_file, output_file, bitrate:int):
         # '-force_key_frames 00:00:01',                   # 想增加个预览封面的，但是没有用。安装了 k-lite 就有了。
         '-c:v av1_nvenc',                               # -c 这类的是输出选项，按理来说应该放在最后面，不过感觉放在这儿更好
         '-multipass qres',                              # disabled(default),qres,fullres 好像有点用，这样设置不会变慢多少
-        '-rc vbr',                                      # -1(default), constqp,vbr,cbr
-        # '-cq 23'                                        # default 0。仅在 -rc constqp 下生效。基本没用
-        '-preset p7',                                   # 最高质量
+        # '-rc vbr',                                      # -1(default), constqp,vbr,cbr
+        # '-cq 23',                                        # default 0。仅在 -rc constqp 下生效。 23 码率 10M，太大了
+        '-preset p7',                                   # 最高质量 速度会慢一点，不影响码率
     ])
     if bitrate > 0:
         cmds.extend([
@@ -298,7 +328,7 @@ def transcode_video(input_file, output_file, bitrate:int):
     ### 音频流 只复制一条音频流
     if g_args.out_ext == '.webm':
         cmds.extend([
-            '-map 0:a:0 -c:a libopus',
+            '-map 0:a:0 -c:a libopus -b:a 128k',
         ])
     elif g_args.out_ext == '.mp4':
         cmds.extend([
@@ -332,9 +362,9 @@ def transcode_video(input_file, output_file, bitrate:int):
 
     ### 在 mp4 开头放置 moovinfo. 据说可以加快播放开始速度。测试下来，本地播放和在共享服务器上播放没什么变化，都很快。
     ### 副作用：需要在编码完成后，再次移动所有数据，然后在开头插入 moov info，这样磁盘存在IO问题。就不开启了。（也没测试过）
-    if g_args.out_ext == '.mp4':
+    if g_args.out_ext == '.mp4' and g_args.faststart:
         cmds.extend([
-            # '-movflags faststart',                       # move moov info to head.
+            '-movflags faststart',                       # move moov info to head. [ctrl+c 中断后文件不完整不能播放了。]
             # '-movflags +faststart',                      # 在文件开头冗余一份 moov info
         ])
 
@@ -364,7 +394,7 @@ def transcode_video(input_file, output_file, bitrate:int):
                 pass
             except KeyboardInterrupt:# 有个缺点，会输出一段
                 print("") # 
-                logging.info(f"Ctrl+C KeyboardInterrupt")
+                logger.info(f"Ctrl+C KeyboardInterrupt")
                 sys.exit(1)
         elif mode == 1: # 文本模式，需要自己处理进度条
             # 第一次尝试
@@ -409,9 +439,10 @@ def transcode_video(input_file, output_file, bitrate:int):
                         if last_is_time_line:
                             sys.stderr.write('\n')
                             last_is_time_line = False
-                        # if logging.getLogger().getEffectiveLevel() <= logging.DEBUG:
                         if g_args.log_debug:
                             # 普通日志信息直接输出
+                            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S ")
+                            sys.stderr.write(current_time)
                             sys.stderr.write(line)
                             sys.stderr.write('\n')
                             sys.stderr.flush()
@@ -425,7 +456,7 @@ def transcode_video(input_file, output_file, bitrate:int):
                     sys.stderr.write('\n')
             except KeyboardInterrupt:
                 sys.stdout.write('\n')
-                logging.info(f"Ctrl+C KeyboardInterrupt")
+                logger.info(f"Ctrl+C KeyboardInterrupt")
                 sys.exit(1)
             process.wait()
             if not is_timeout and process.returncode != 0:
@@ -434,9 +465,9 @@ def transcode_video(input_file, output_file, bitrate:int):
             assert(False)
             pass
 
-        logging.info(f"转码完成：{output_file}")
+        logger.info(f"转码完成：{output_file}")
     except subprocess.CalledProcessError as e:
-        logging.error(f"错误：转码失败 - 返回码 {e.returncode}")
+        logger.error(f"错误：转码失败 - 返回码 {e.returncode}")
         sys.exit(1)
 
 def find_mp4_files(directory: str) -> List[str]:
@@ -453,7 +484,7 @@ def process_file(input_file: str, out_dir: str):
     # 检测编码格式
     codec = get_video_codec(input_file)
     if not g_args.overwrite and (codec in g_hq_codec):
-        logging.info(f"跳过：{input_file} 已是高级编码:{codec}")
+        logger.info(f"跳过：{input_file} 已是高级编码:{codec}")
         return
 
     # 获取视频参数
@@ -464,15 +495,16 @@ def process_file(input_file: str, out_dir: str):
     filename_without_ext = Path(input_file).stem
     output_file = os.path.join(out_dir, f"{filename_without_ext}{g_args.out_ext}")
     if not g_args.overwrite and os.path.exists(output_file):
-        logging.warning(f"跳过：{input_file}. output_file exsit {output_file}")
+        logger.warning(f"跳过：{input_file}. output_file exsit {output_file}")
         return
     # output_file = os.path.join(out_dir, f"{filename_without_ext}.mkv")
 
     # 执行转码
-    logging.info(f"start_encode：{input_file}({codec}, {height}p, to {bitrate}kbps). Press Ctrl+C to interrupt.")
+    logger.info(f"start_encode：{input_file}({codec}, {height}p, to {bitrate}kbps). Press Ctrl+C to interrupt.")
     transcode_video(input_file, output_file, bitrate)
 
 def main():
+    setup_colored_logger()
     global g_args
     parser = argparse.ArgumentParser(description="AV1 批量转码工具")
     parser.add_argument("input_path", nargs='+', help="输入文件或目录路径")
@@ -493,11 +525,10 @@ def main():
     parser.add_argument('-n', "--dry-run", type=float, default=g_args.dry_run, help="kill ffmpeg if timeout. output to null.")
     add_option('-no', "--dry-run-out", default=g_args.dry_run_out, help="output to file when dry-run")
     add_option('-d', "--log-debug", default=g_args.log_debug, help="是否输出 debug 信息")
+    add_option('-fs', "--faststart", default=g_args.faststart, help="是否开启 moov faststart")
     parser.add_argument('-e', '--out-ext', type=str, choices=g_support_output_exts,default=g_args.out_ext, help=f'输出文件的封住格式，默认{g_args.out_ext}')
     args:GArgs = parser.parse_args()
     g_args = args
-
-    setup_colored_logging()
 
     # 获取待处理文件列表
     files:list[str]=[]
@@ -508,21 +539,22 @@ def main():
             t_files = find_mp4_files(input_path)
             files.extend(t_files)
     if not files:
-        logging.warning(f"错误：未找到1个需要处理的视频文件")
+        logger.warning(f"错误：未找到1个需要处理的视频文件")
         sys.exit(0)
 
     # 创建输出目录（如果不存在）
     os.makedirs(g_args.out_dir, exist_ok=True)
     if not os.path.isdir(g_args.out_dir):
-        logging.error(f"out_dir is not dir {args.out_dir}")
+        logger.error(f"out_dir is not dir {args.out_dir}")
         sys.exit(1)
 
     # 批量处理
-    logging.info(f"找到 {len(files)} 个视频文件\n")
-    for file in files:
+    logger.info(f"找到 {len(files)} 个视频文件\n")
+    for idx, file in enumerate(files):
+        logger.info(f"process {idx+1}: {file}")
         process_file(file, g_args.out_dir)
-        print("")
-    logging.info("全部处理完成")
+    logger.info("全部处理完成")
+    logger
 
 if __name__ == "__main__":
     main()
