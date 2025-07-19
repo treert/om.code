@@ -2,7 +2,9 @@ import argparse
 import atexit
 from dataclasses import dataclass, field
 from datetime import datetime
+import json
 import logging
+import math
 import os
 from pathlib import Path
 import re
@@ -14,21 +16,21 @@ from typing import IO, List
 
 import colorlog
 
-"""
+r"""
 对于不同封装格式的处理
 - 公共的部分:
     - encode 1 video to av1
-    - copy 1 audio                                          # 一些视频有多条音轨。想了想只选一条。
-    - reset all input metadata 【还是保留了，有些有用】       # 转码后有些数据不对了，但是 ffmpeg 不会修改。
+    - encode 1 video to opus                                # 一些视频有多条音轨。想了想只选一条。
 - mkv:
     - copy all subtitle, attachment, data
-    - set -metadata:s:v:0 BPS-eng={bitrate*1000}"         # 这个数据需要重新设置
+    - set -metadata:s:v:0 BPS-eng={bitrate*1000}           # 这个数据需要重新设置
+    - set -metadata:s:a:0 BPS-eng={opus_bitrate*1000}
 - webm:
-    - encode audio to opus                                # webm only support it
-    - set -metadata:s:v:0 BPS-eng={bitrate*1000}"         # 和mkv 一样
+    - encode audio to opus                                  # webm only support it
+    - set BPS-eng like mkv
 - mp4:
-    - encode audio to aac (现在没有这么做, 而是用的 copy)
-    - safe copy subtile (现在不复制，没有必要，有ai翻译工具)
+    - clear many metadata
+    - 默认情况下，音频也转码成了 opus，刚开始时使用的 copy
 
 各个封装格式的问题
 - mkv: 
@@ -44,59 +46,66 @@ import colorlog
 
 mkv 和 webm 没有把码率信息直接编码进流中，而是用元数据的方法补充的。对于直播来说很对，播放中途是可以修改码率的。
 
-在元数据这边折腾好久，有点想直接删掉好了。【愉快的决定了，删掉】
+在元数据这边折腾好久，有点想直接删掉好了。
 
 本来想默认使用 mkv，因为想保留字幕，mp4 对字幕的支持很拉。
 后来想想现在有AI语音识别和翻译了，似乎没必要还特别保留原始字幕。
 
-
 ---------------------- 遇到的一些问题
 1. 可变帧率mp4 编码后的文件播放时周期的有卡顿感。豆包最后给了方案，先转换成恒定帧率的视频。Bash 脚本
-ffmpeg -i input_vfr.mp4 \
-  -r $(ffprobe -v error -select_streams v:0 -show_entries stream=avg_frame_rate -of default=noprint_wrappers=1:nokey=1 input_vfr.mp4) \
-  -c:v copy \
+ffmpeg -i input_vfr.mp4 \ 
+  -r $(ffprobe -v error -select_streams v:0 -show_entries stream=avg_frame_rate -of default=noprint_wrappers=1:nokey=1 input_vfr.mp4) \ 
+  -c:v copy \ 
   -af aresample=async=1 -c:a aac \  # 让声音和画面同步，对于 可变帧率的wmv可能有用 
   output_cfr.mp4
 
 ----------------------- 码率
-当前的avi_nvenc 默认是 2000k 不随输入分辨率或码率变化。
-自动设置时在 determine_bitrate 根据帧高度给不同的码率。
+这个工具只能起到压缩的作用，输入的低品质视频，输出还是低品质的。码率高是高品质的必要条件，但不充分。
+确定码率的方案搜索 determine_bitrate_for_file
 
-码率最好还是更加输入文件类型单独设置，这儿列一个比例表。
-
+这儿列一个比例表。
 1080p   AV1     H265    H264    
-AV1     100     165     280
-H265    60      100     165
-H264    35      60      100
+AV1     100     130     250
+H265    75      100     180
+H264    40      55      100
 
-1080p 60fps 比 30fps 要 +40% 作用
+1080p 60fps 比 30fps 要 +40% 作用。不过对于这个工具来说没影响。
 
-下载的一些 1080p 的视频 h265编码，码率不足1000k，效果还可以，就离谱。
+PS: 下载的一些 1080p 的视频 h265编码，码率不足1000k，效果还可以，就离谱。
 
 ----------------------- 其他
-transcode_video 函数，可以看到许多参数的用法说明。
-
+- transcode_video 函数，可以看看 ffmpeg 的使用方式
+- determine_bitrate_for_file 函数，可以看到 ffprobe 的使用方式。
 """
 
-
+determine_bitrate_for_file_help =  """
+    根据 set_bitrate 确定视频码率，单位是 kbps。，多种模式
+    >0: 用户设置的码率
+    =0: 留给 av1_nvenc 来决定，目前看上去就是 2000 
+    -1: determine_bitrate_by_height
+    -2: 根据输入视频编码方式确定一个压缩比例
+"""
 
 @dataclass
 class GArgs:
     input_path:list[str] = field(default_factory=list)
     out_dir:str = '.'
-    set_bitrate: int = -1 # 0:auto_set see determine_bitrate, >0:set, <0:not_set (2000k). 
+    set_bitrate: int = -2           # determine_bitrate_for_file_help
+    set_opus_bitrate: int = 128     # 强制使用 opus 编码音频。默认如此吧，体积小，反正我听不出来。
     test_time:int = 0
     dry_run: float = 0
     dry_run_out: bool = False
     overwrite: bool = False
-    out_ext:str = '.mp4'   # 默认封装格式
+    out_ext:str = '.mp4'            # 默认封装格式
     log_debug:bool = False
-    faststart:bool = False  # -movflags faststart，缺点：1. ctrl+c 中断编码，mp4损坏。【似乎没什么好处呢】
+    faststart:bool = False          # -movflags faststart，缺点：1. ctrl+c 中断编码，mp4损坏。2. 可能多一次pass,对磁盘有峰值压力【似乎没什么好处呢】
 
 g_args = GArgs()
 g_support_input_exts = ('.mp4', '.mkv', '.avi', '.rmvb', '.wmv', '.mov', '.webm')
 g_support_output_exts = [".mp4", ".mkv", ".webm"]
-g_hq_codec = ['av1','hevc'] # 高级编码，默认这种输入文件不处理
+# 高级编码，默认这种输入文件不处理
+g_hq_codec = ['av1'] 
+# g_hq_codec = ['av1','hevc'] 
 
 # 配置日志系统
 # logging.basicConfig(
@@ -143,6 +152,7 @@ def format_cmds(cmds:list[str]):
 
 def get_video_codec(input_file):
     """使用 ffprobe 检测视频编码格式"""
+    # ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1
     cmd = [
         'ffprobe',
         '-v', 'error',
@@ -159,8 +169,29 @@ def get_video_codec(input_file):
         logger.error(f"错误：无法检测视频编码 - {e}")
         sys.exit(1)
 
+def get_video_bitrate(input_file):
+    # ffprobe -v error -select_streams v:0 -show_entries stream=bit_rate -of json
+    cmd = [
+        'ffprobe',
+        '-v', 'error',
+        '-select_streams', 'v:0',
+        '-show_entries', 'stream=bit_rate',
+        '-of', 'json', # 换成上面的 default=noprint_wrappers=1:nokey=1 也可以
+        input_file
+    ]
+    
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    output = json.loads(result.stdout)
+    
+    try:
+        bitrate = int(output['streams'][0]['bit_rate'])
+        return bitrate // 1000
+    except (KeyError, IndexError):
+        return None
+
 def get_video_height(input_file):
     """使用 ffprobe 获取视频帧高度"""
+    # ffprobe -v error -select_streams v:0 -show_entries stream=height -of default=noprint_wrappers=1:nokey=1
     cmd = [
         'ffprobe',
         '-v', 'error',
@@ -179,6 +210,7 @@ def get_video_height(input_file):
 
 def get_video_duration(input_file):
     """使用ffprobe获取视频总时长（秒）"""
+    # ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1
     cmd = [
         'ffprobe', '-v', 'error',
         '-show_entries', 'format=duration',
@@ -196,12 +228,58 @@ def time_to_seconds(time_str):
     except Exception:
         return 0
         pass
-def determine_bitrate(height):
-    """根据视频高度确定目标码率（单位：kbps）"""
+
+
+def determine_bitrate_for_file(input_file) -> int:
     if g_args.set_bitrate > 0:
         return g_args.set_bitrate
-    elif g_args.set_bitrate < 0:
+    if g_args.set_bitrate == 0:
         return 0
+
+    # ffprobe -v error -select_streams v:0 -show_entries stream -of json
+    cmd = [
+        'ffprobe',
+        '-v', 'error',
+        '-select_streams', 'v:0',
+        '-show_entries', 'stream',
+        '-of', 'json',
+        input_file
+    ]
+    
+    try:
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        output = json.loads(result.stdout)
+        info = output['streams'][0]
+        if g_args.set_bitrate == -1:
+            height = int(info['height'])
+            return determine_bitrate_by_height(height)
+        if g_args.set_bitrate == -2:
+            codec_name = str(info['codec_name']).lower()
+            tgt_bit_rate = None     # 故意这样，方便触发异常
+            bit_rate = None         # 故意这样，方便触发异常
+            if g_args.out_ext == '.mp4':
+                bit_rate = int(info['bit_rate'])
+            else: # 估算码率
+                file_size = os.path.getsize(input_file)
+                duration = get_video_duration(input_file)
+                bit_rate = int(file_size/duration*8)
+                bit_rate = bit_rate - min(256, bit_rate // 4)*1000 # 剔除音频
+                # print(f"file_size={file_size}, duration={duration}, bit_rate={bit_rate}")
+                
+            if codec_name == 'hevc':
+                tgt_bit_rate = bit_rate * 0.8
+            elif codec_name == 'h264':
+                tgt_bit_rate = bit_rate * 0.4
+            elif codec_name == 'vc1':
+                tgt_bit_rate = bit_rate * 0.3
+            
+            return int(tgt_bit_rate / 1000)
+    except Exception as e:
+        logger.error(f"错误：无法确定输出视频码率 set_bitrate={g_args.set_bitrate} - {e}")
+        sys.exit(1)
+
+def determine_bitrate_by_height(height):
+    """根据视频高度确定目标码率（单位：kbps）"""
 
     # Netflix AV1 推荐码率表​
     if height <= 480:
@@ -274,7 +352,7 @@ def transcode_video(input_file, output_file, bitrate:int):
         ### set metadata
         # '-map_chapters -1',                             # 剔除所有章节数据 ffprobe mp4 可能报错，算了，不要了
         # '-map_metadata -1',                             # 剔除所有元数据
-        '-metadata', f'title={Path(input_file).stem}',    # 标题 有些title里有乱码，全部设置成文件名好了。放在
+        '-metadata', f'title={Path(output_file).stem}',   # 标题 有些title里有乱码，全部设置成文件名好了。放在
         # '-metadata', f'artist=one001',                    # 作者
         # '-fflags +genpts -write_tmcd 0',                # 原来想用来修复 mkv 元数据的，实际没用. +genpts 好像可以修复时间戳
     ]
@@ -284,7 +362,9 @@ def transcode_video(input_file, output_file, bitrate:int):
     ## 修正一些元数据
     if g_args.out_ext == '.mp4':
         # cmds.append('-map_metadata -1')   # 清掉元数据 【有必要保留吗？】
-        # cmds.append('-map_chapters -1')   # 清掉章节数据。黑客帝国动画电影有两种章节数据，编码成 mp4 后 ffprobe 有个小错误输出 
+        cmds.append('-map_metadata:s:v -1')
+        cmds.append('-map_metadata:s:a -1')
+        cmds.append('-map_chapters -1')   # 清掉章节数据。黑客帝国动画电影有两种章节数据，编码成 mp4 后 ffprobe 有个小错误输出 
         pass
     # if g_args.out_ext in ('.mkv','.webm'):
     if True: # 不管什么类型，都设置下，也没啥坏处。
@@ -326,18 +406,26 @@ def transcode_video(input_file, output_file, bitrate:int):
         ])
     
     ### 音频流 只复制一条音频流
-    if g_args.out_ext == '.webm':
+    if g_args.set_opus_bitrate > 0:
         cmds.extend([
-            '-map 0:a:0 -c:a libopus -b:a 128k',
-        ])
-    elif g_args.out_ext == '.mp4':
-        cmds.extend([
-            '-map 0:a:0 -c:a copy', # 按理来说应该用 aac
-        ])
+                f'-map 0:a:0 -c:a libopus -b:a {g_args.set_opus_bitrate}k',
+                f'-metadata:s:a:0 BPS-eng={g_args.set_opus_bitrate*1000}',
+            ])
     else:
-        cmds.extend([
-            '-map 0:a:0 -c:a copy',
-        ])
+        if g_args.out_ext == '.webm':
+            t_opus_bitrate = 128
+            cmds.extend([
+                f'-map 0:a:0 -c:a libopus -b:a {t_opus_bitrate}k',        # webm 强制使用 opus
+                f'-metadata:s:a:0 BPS-eng={t_opus_bitrate*1000}',
+            ])
+        elif g_args.out_ext == '.mp4':
+            cmds.extend([
+                '-map 0:a:0 -c:a copy', # 按理来说应该用 aac
+            ])
+        else:
+            cmds.extend([
+                '-map 0:a:0 -c:a copy',
+            ])
 
     ### mkv 复制 其他流 
     if g_args.out_ext == '.mkv':
@@ -419,9 +507,10 @@ def transcode_video(input_file, output_file, bitrate:int):
             try:
                 start_time = time.time()  # 记录开始时间
                 last_is_time_line = False
+                sys.stdout.flush()
                 for line in process.stdout:
                     line:str
-                    line = line.rstrip('\n')
+                    line = line.strip('\n')
                     # 尝试匹配进度信息
                     time_match = time_pattern.search(line)
                     if time_match:
@@ -485,23 +574,22 @@ def process_file(input_file: str, out_dir: str):
     codec = get_video_codec(input_file)
     if not g_args.overwrite and (codec in g_hq_codec):
         logger.info(f"跳过：{input_file} 已是高级编码:{codec}")
-        return
+        return False
 
-    # 获取视频参数
-    height = get_video_height(input_file)
-    bitrate = determine_bitrate(height)
+    # 获取输出视频码率
+    bitrate = determine_bitrate_for_file(input_file)
 
     # 生成输出路径
-    filename_without_ext = Path(input_file).stem
+    filename_without_ext = Path(input_file).stem.upper()
     output_file = os.path.join(out_dir, f"{filename_without_ext}{g_args.out_ext}")
     if not g_args.overwrite and os.path.exists(output_file):
         logger.warning(f"跳过：{input_file}. output_file exsit {output_file}")
-        return
-    # output_file = os.path.join(out_dir, f"{filename_without_ext}.mkv")
+        return False
 
     # 执行转码
-    logger.info(f"start_encode：{input_file}({codec}, {height}p, to {bitrate}kbps). Press Ctrl+C to interrupt.")
+    logger.info(f"start_encode：{input_file}({codec}, to {bitrate}kbps). Press Ctrl+C to interrupt.")
     transcode_video(input_file, output_file, bitrate)
+    return True
 
 def main():
     setup_colored_logger()
@@ -520,8 +608,9 @@ def main():
 
     parser.add_argument('-o', "--out-dir", default=g_args.out_dir, help="输出目录（默认当前目录）")
     add_option('-f', "--overwrite", default=g_args.overwrite, help="是否强制转码，无视：输入文件是高级编码，输出文件已经存在")
-    parser.add_argument('-b', "--set-bitrate", type=int, default=g_args.set_bitrate, help=f"set -b:v xk 0:auto_set,>0:set,<0:not_set (default {g_args.set_bitrate})")
-    parser.add_argument('-t', "--test-time", type=int, default=g_args.test_time, help=f"只编码文件的前几秒 (default {g_args.set_bitrate})")
+    parser.add_argument('-b', "--set-bitrate", type=int, default=g_args.set_bitrate, help=f"{determine_bitrate_for_file_help}(default {g_args.set_bitrate})")
+    parser.add_argument('-ab', "--set-opus-bitrate", type=int, default=g_args.set_opus_bitrate, help=f"opus 的码率，如果设置了就会使用，webm文件会强制使用 (default {g_args.set_opus_bitrate})")
+    parser.add_argument('-t', "--test-time", type=int, default=g_args.test_time, help=f"只编码文件的前几秒 (default {g_args.test_time})")
     parser.add_argument('-n', "--dry-run", type=float, default=g_args.dry_run, help="kill ffmpeg if timeout. output to null.")
     add_option('-no', "--dry-run-out", default=g_args.dry_run_out, help="output to file when dry-run")
     add_option('-d', "--log-debug", default=g_args.log_debug, help="是否输出 debug 信息")
@@ -549,11 +638,14 @@ def main():
         sys.exit(1)
 
     # 批量处理
-    logger.info(f"找到 {len(files)} 个视频文件\n")
+    total_cnt = len(files)
+    logger.info(f"找到 {total_cnt} 个视频文件\n")
+    cnt = 0
     for idx, file in enumerate(files):
-        logger.info(f"process {idx+1}: {file}")
-        process_file(file, g_args.out_dir)
-    logger.info("全部处理完成")
+        logger.info(f"process {idx+1}/{total_cnt}: {file}")
+        ok = process_file(file, g_args.out_dir)
+        cnt += int(ok)
+    logger.info(f"全部处理完成. {cnt}/{total_cnt}")
     logger
 
 if __name__ == "__main__":
