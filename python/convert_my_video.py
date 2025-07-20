@@ -140,11 +140,11 @@ def setup_colored_logger():
     logger.addHandler(console)
 
 
-def format_cmds(cmds:list[str]):
+def format_cmds(cmds:list[str], force_split:bool = False):
     """格式化命令数组，主要是对参数做空格分割。"""
     ret = []
     for it in cmds:
-        if it.startswith('-'):
+        if force_split or it.startswith('-'):
             ret.extend(it.split())  # 如果有错误的空格，可能会凉。不要那么做就行。
         else:
             ret.append(it)
@@ -152,13 +152,8 @@ def format_cmds(cmds:list[str]):
 
 def get_video_codec(input_file):
     """使用 ffprobe 检测视频编码格式"""
-    # ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1
     cmd = [
-        'ffprobe',
-        '-v', 'error',
-        '-select_streams', 'v:0',
-        '-show_entries', 'stream=codec_name',
-        '-of', 'default=noprint_wrappers=1:nokey=1',
+        *'ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1'.split(),
         input_file
     ]
     try:
@@ -170,13 +165,9 @@ def get_video_codec(input_file):
         sys.exit(1)
 
 def get_video_bitrate(input_file):
-    # ffprobe -v error -select_streams v:0 -show_entries stream=bit_rate -of json
     cmd = [
-        'ffprobe',
-        '-v', 'error',
-        '-select_streams', 'v:0',
-        '-show_entries', 'stream=bit_rate',
-        '-of', 'json', # 换成上面的 default=noprint_wrappers=1:nokey=1 也可以
+        # 换成上面的 default=noprint_wrappers=1:nokey=1 也可以
+        *'ffprobe -v error -select_streams v:0 -show_entries stream=bit_rate -of json'.split(),
         input_file
     ]
     
@@ -191,13 +182,8 @@ def get_video_bitrate(input_file):
 
 def get_video_height(input_file):
     """使用 ffprobe 获取视频帧高度"""
-    # ffprobe -v error -select_streams v:0 -show_entries stream=height -of default=noprint_wrappers=1:nokey=1
     cmd = [
-        'ffprobe',
-        '-v', 'error',
-        '-select_streams', 'v:0',
-        '-show_entries', 'stream=height',
-        '-of', 'default=noprint_wrappers=1:nokey=1',
+        *'ffprobe -v error -select_streams v:0 -show_entries stream=height -of default=noprint_wrappers=1:nokey=1'.split(),
         input_file
     ]
     try:
@@ -210,11 +196,8 @@ def get_video_height(input_file):
 
 def get_video_duration(input_file):
     """使用ffprobe获取视频总时长（秒）"""
-    # ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1
     cmd = [
-        'ffprobe', '-v', 'error',
-        '-show_entries', 'format=duration',
-        '-of', 'default=noprint_wrappers=1:nokey=1',
+        *'ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1'.split(),
         input_file
     ]
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -235,14 +218,9 @@ def determine_bitrate_for_file(input_file) -> int:
         return g_args.set_bitrate
     if g_args.set_bitrate == 0:
         return 0
-
-    # ffprobe -v error -select_streams v:0 -show_entries stream -of json
+    
     cmd = [
-        'ffprobe',
-        '-v', 'error',
-        '-select_streams', 'v:0',
-        '-show_entries', 'stream',
-        '-of', 'json',
+        *'ffprobe -v error -select_streams v:0 -show_entries stream -of json'.split(),
         input_file
     ]
     
@@ -257,7 +235,8 @@ def determine_bitrate_for_file(input_file) -> int:
             codec_name = str(info['codec_name']).lower()
             tgt_bit_rate = None     # 故意这样，方便触发异常
             bit_rate = None         # 故意这样，方便触发异常
-            if g_args.out_ext == '.mp4':
+            input_ext = Path(input_file).suffix
+            if input_ext == '.mp4':
                 bit_rate = int(info['bit_rate'])
             else: # 估算码率
                 file_size = os.path.getsize(input_file)
@@ -275,7 +254,7 @@ def determine_bitrate_for_file(input_file) -> int:
             
             return int(tgt_bit_rate / 1000)
     except Exception as e:
-        logger.error(f"错误：无法确定输出视频码率 set_bitrate={g_args.set_bitrate} - {e}")
+        logger.exception(f"错误：无法确定输出视频码率 set_bitrate={g_args.set_bitrate} - {e}")
         sys.exit(1)
 
 def determine_bitrate_by_height(height):
@@ -466,7 +445,7 @@ def transcode_video(input_file, output_file, bitrate:int):
     cmds = format_cmds(cmds)
     try:
         print(" ".join(cmds))
-        print("")
+        print("")  # 说法是不建议有空行
         mode = 1
         if mode == 2: # 最简单的方案。把子进程的输出定向到当前进程
             try:
@@ -570,6 +549,13 @@ def find_mp4_files(directory: str) -> List[str]:
 
 def process_file(input_file: str, out_dir: str):
     """处理单个视频文件"""
+    # 生成输出路径
+    filename_without_ext = Path(input_file).stem.upper()
+    output_file = os.path.join(out_dir, f"{filename_without_ext}{g_args.out_ext}")
+    if not g_args.overwrite and os.path.exists(output_file):
+        logger.warning(f"跳过：{input_file}. output_file exsit {output_file}")
+        return False
+
     # 检测编码格式
     codec = get_video_codec(input_file)
     if not g_args.overwrite and (codec in g_hq_codec):
@@ -578,13 +564,6 @@ def process_file(input_file: str, out_dir: str):
 
     # 获取输出视频码率
     bitrate = determine_bitrate_for_file(input_file)
-
-    # 生成输出路径
-    filename_without_ext = Path(input_file).stem.upper()
-    output_file = os.path.join(out_dir, f"{filename_without_ext}{g_args.out_ext}")
-    if not g_args.overwrite and os.path.exists(output_file):
-        logger.warning(f"跳过：{input_file}. output_file exsit {output_file}")
-        return False
 
     # 执行转码
     logger.info(f"start_encode：{input_file}({codec}, to {bitrate}kbps). Press Ctrl+C to interrupt.")
