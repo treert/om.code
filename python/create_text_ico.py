@@ -47,7 +47,7 @@ if __name__ == "__main__":
     if args.font_size == 0:
         cnt = len(args.text)
         if cnt == 1:
-            args.font_size = args.size * 40 // 64
+            args.font_size = args.size * 56 // 64
         else:
             args.font_size = args.size // cnt
 
