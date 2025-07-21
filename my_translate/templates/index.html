@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Translation Service</title>
+    <style>
+body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        textarea {
+            width: 100%;
+            height: 120px;
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            resize: vertical;
+        }
+        
+        button {
+            padding: 10px 20px;
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #3367d6;
+        }
+        
+        .language-select {
+            margin: 15px 0;
+            display: flex;
+            gap: 20px;
+        }
+        
+        .language-select select {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        
+        .section {
+            margin-top: 25px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .section-title {
+            background-color: #f1f1f1;
+            padding: 12px 15px;
+            font-weight: 600;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        #translationResult {
+            padding: 15px;
+            min-height: 60px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            font-size: 16px;
+            background-color: #f9f9f9;
+        }
+        
+        #jsonResponse {
+            padding: 15px;
+            min-height: 100px;
+            max-height: 300px;
+            overflow-y: auto;
+            background-color: #fafafa;
+            border-top: 1px solid #eee;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre;
+        }
+        
+        /* 滚动条样式 */
+        #jsonResponse::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        #jsonResponse::-webkit-scrollbar-thumb {
+            background-color: #c1c1c1;
+            border-radius: 4px;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 600px) {
+            .language-select {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            body {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Translation Service</h1>
+    
+    <div class="language-select">
+        <label for="src_lang">Source Language:</label>
+        <select id="src_lang">
+            <option value="auto">Auto Detect</option>
+            <option value="eng">English</option>
+            <option value="zho">中文</option>
+            <option value="jpn">日本語 (日语)</option>
+            <option value="kor">한국어 (韩语)</option>
+        </select>
+        
+        <label for="tgt_lang">Target Language:</label>
+        <select id="tgt_lang">
+            <option value="zho_Hans">简体中文</option>
+            <option value="eng">English</option>
+        </select>
+    </div>
+    
+    <textarea id="inputText" placeholder="Enter text to translate..."></textarea>
+    <button onclick="translateText()">Translate</button>
+    
+    <div class="section">
+        <div class="section-title">Translation Result:</div>
+        <div id="translationResult"></div>
+    </div>
+    
+    <div class="section">
+        <div class="section-title">Full JSON Response:</div>
+        <div id="jsonResponse"></div>
+    </div>
+    
+    <script>
+        async function translateText() {
+            const text = document.getElementById('inputText').value;
+            const src_lang = document.getElementById('src_lang').value;
+            const tgt_lang = document.getElementById('tgt_lang').value;
+            
+            if (!text) {
+                alert('Please enter some text to translate');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/translate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        text: text,
+                        src_lang: src_lang,
+                        tgt_lang: tgt_lang
+                    })
+                });
+                
+                const data = await response.json();
+
+                // 显示翻译结果
+                document.getElementById('translationResult').textContent = 
+                    data.translation;
+                
+                // 显示完整JSON响应（格式化）
+                document.getElementById('jsonResponse').textContent = 
+                    JSON.stringify(data, null, 2);
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('translationResult').textContent = 
+                    'Translation failed: ' + error.message;
+                document.getElementById('jsonResponse').textContent = 
+                    'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
