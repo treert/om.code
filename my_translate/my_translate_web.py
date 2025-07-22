@@ -1,4 +1,5 @@
 import argparse
+import atexit
 from dataclasses import dataclass
 import sys
 from flask import Flask, request, jsonify, render_template
@@ -45,13 +46,10 @@ def translate_api():
             line = line.strip()
             if len(line) > 0:
                 result = translate_line(line, tgt_lang, src_lang, score_limit)
-                if g_args.debug:
-                    # print("input:  ", line)
-                    # print("output: ", result)
-                    # 上面的写法，launcher 获取不到这些日志
-                    sys.stdout.write(f"input:  {line}\n")
-                    sys.stdout.write(f"output: {result}\n")
-                    sys.stdout.flush()
+                # app.logger.info(f"input:  {line}")
+                # app.logger.info(f"output: {result}")
+                print(f"input:  {line}", flush=True)
+                print(f"output: {result}", flush=True)
                 rets.append(result)
             else:
                 rets.append('')
@@ -64,6 +62,11 @@ def translate_api():
 @app.route('/')
 def index():
     return render_template('index.html')
+
+# @app.route('/shutdown')
+# def shutdown():
+    
+#     return 'Server shutting down...'
 
 
 '''
@@ -92,9 +95,10 @@ if __name__ == '__main__':
     g_args.debug = args.debug
     port = args.port
     host = args.outside and '0.0.0.0' or '127.0.0.1'
+    atexit.register(lambda: print("Server shutting down...", flush=True))
     import my_translate
     if g_args.debug:
         app.run(host=host, port=port, debug=True)
     else:
-        sys.stdout.write(f"Running on http://{host}:{port}\n")
+        print(f"Running on http://{host}:{port}\n", flush=True)
         waitress.serve(app, host=host, port=port)
