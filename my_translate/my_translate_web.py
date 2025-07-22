@@ -1,12 +1,50 @@
 import argparse
 import atexit
 from dataclasses import dataclass
+import logging
+import os
 import sys
+import colorlog
 from flask import Flask, request, jsonify, render_template
 from typing import List
 import json
 
 import waitress
+
+logger = colorlog.getLogger()
+def setup_colored_logger():
+    """配置彩色日志输出"""
+    console_formatter = colorlog.ColoredFormatter(
+        '%(log_color)som-log: %(asctime)s %(levelname)-8s %(name)s: %(message)s%(reset)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+        log_colors={
+            'DEBUG': 'cyan',
+            'INFO': 'green',
+            'WARNING': 'yellow',
+            'ERROR': 'red',
+            'CRITICAL': 'red,bg_white',
+        },
+        reset=True,
+        style='%',
+        # stream=sys.stdout,# 默认是 stderr 没有用
+    )
+    # console handler
+    console_handler = colorlog.StreamHandler(sys.stdout) # 不传参数，会输出到 sys.stderr 里
+    console_handler.setFormatter(console_formatter)
+
+    log_file =  f"{os.path.abspath(__file__)}.log"
+    file_handler = logging.FileHandler(log_file, encoding='utf-8', mode='a') # 'a' 表示追加模式
+    file_formatter = logging.Formatter(
+        '%(asctime)s %(levelname)-8s %(name)s: %(message)s'
+    )
+    file_handler.setFormatter(file_formatter)
+    
+    logger.setLevel(logging.INFO)
+    # logger.setLevel(logging.DEBUG)
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+
+setup_colored_logger()
 
 @dataclass
 class GArgs:
@@ -46,10 +84,8 @@ def translate_api():
             line = line.strip()
             if len(line) > 0:
                 result = translate_line(line, tgt_lang, src_lang, score_limit)
-                # app.logger.info(f"input:  {line}")
-                # app.logger.info(f"output: {result}")
-                print(f"input:  {line}", flush=True)
-                print(f"output: {result}", flush=True)
+                logger.info(f"input:  {line}")
+                logger.info(f"output: {result}")
                 rets.append(result)
             else:
                 rets.append('')
@@ -62,12 +98,6 @@ def translate_api():
 @app.route('/')
 def index():
     return render_template('index.html')
-
-# @app.route('/shutdown')
-# def shutdown():
-    
-#     return 'Server shutting down...'
-
 
 '''
 curl -X POST http://localhost:5000/translate \
@@ -95,10 +125,13 @@ if __name__ == '__main__':
     g_args.debug = args.debug
     port = args.port
     host = args.outside and '0.0.0.0' or '127.0.0.1'
-    atexit.register(lambda: print("Server shutting down...", flush=True))
-    import my_translate
-    if g_args.debug:
-        app.run(host=host, port=port, debug=True)
-    else:
-        print(f"Running on http://{host}:{port}\n", flush=True)
-        waitress.serve(app, host=host, port=port)
+    
+    logger.info(f"Start my_translate server on http://{host}:{port}. mode: {'debug' if g_args.debug else 'release'}")
+    try:
+        import my_translate
+        if g_args.debug:
+            app.run(host=host, port=port, debug=True)
+        else:
+            waitress.serve(app, host=host, port=port)
+    finally:
+        logger.info(f"my_translate server Stoped\n")
