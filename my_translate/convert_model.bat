@@ -1,0 +1,3 @@
+@REM ct2-transformers-converter --model .\llm-models\nllb-200-1.3B  --output_dir .\ct-models\nllb-200-1.3B-ct2  --quantization int8_float16
+@REM ct2-transformers-converter --model .\llm-models\nllb-200-distilled-1.3B  --output_dir .\ct-models\nllb-200-distilled-1.3B-ct2  --quantization int8_float16
+@REM ct2-transformers-converter --model .\llm-models\nllb-200-3.3B  --output_dir .\ct-models\nllb-200-3.3B-ct2  --quantization int8_float16
