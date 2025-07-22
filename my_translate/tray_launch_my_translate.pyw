@@ -191,9 +191,9 @@ if __name__ == "__main__":
 
     # 注意这里创建 Icon 时，菜单最初可以是空的，或者直接调用 create_menu()
     icon = Icon(
-        "my_server_app",
+        "my_translate_app",
         image,
-        "本地服务器",
+        "My翻译服务器",
         menu=create_menu() # 初始菜单
     )
 
