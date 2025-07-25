@@ -242,15 +242,19 @@ def determine_bitrate_for_file(input_file) -> int:
                 file_size = os.path.getsize(input_file)
                 duration = get_video_duration(input_file)
                 bit_rate = int(file_size/duration*8)
-                bit_rate = bit_rate - min(256, bit_rate // 4)*1000 # 剔除音频
+                bit_rate = bit_rate - min(256*1000, bit_rate // 4) # 剔除音频
                 # print(f"file_size={file_size}, duration={duration}, bit_rate={bit_rate}")
                 
             if codec_name == 'hevc':
                 tgt_bit_rate = bit_rate * 0.8
+            elif codec_name == 'vp9':
+                tgt_bit_rate = bit_rate * 0.65
             elif codec_name == 'h264':
                 tgt_bit_rate = bit_rate * 0.4
             elif codec_name == 'vc1':
-                tgt_bit_rate = bit_rate * 0.3
+                tgt_bit_rate = bit_rate * 0.4 * 0.75
+            elif codec_name == 'rv40':
+                tgt_bit_rate = bit_rate * 0.4 * 0.6
             
             return int(tgt_bit_rate / 1000)
     except Exception as e:
@@ -333,7 +337,7 @@ def transcode_video(input_file, output_file, bitrate:int):
         # '-map_metadata -1',                             # 剔除所有元数据
         '-metadata', f'title={Path(output_file).stem}',   # 标题 有些title里有乱码，全部设置成文件名好了。放在
         # '-metadata', f'artist=one001',                    # 作者
-        # '-fflags +genpts -write_tmcd 0',                # 原来想用来修复 mkv 元数据的，实际没用. +genpts 好像可以修复时间戳
+        # '-fflags +genpts',                                # 原来想用来修复 mkv 元数据的，实际没用. +genpts 好像可以修复时间戳
     ]
 
     # cmds.append('-map_metadata -1') # 愉快的决定了，删掉
@@ -389,6 +393,7 @@ def transcode_video(input_file, output_file, bitrate:int):
         cmds.extend([
                 f'-map 0:a:0 -c:a libopus -b:a {g_args.set_opus_bitrate}k',
                 f'-metadata:s:a:0 BPS-eng={g_args.set_opus_bitrate*1000}',
+                '-af aresample=async=1',                    # 表面是使得声音和视频同步。实际可以解决画面周期性卡顿问题，且不会报错，打断进度日志
             ])
     else:
         if g_args.out_ext == '.webm':
@@ -490,6 +495,9 @@ def transcode_video(input_file, output_file, bitrate:int):
                 for line in process.stdout:
                     line:str
                     line = line.strip('\n')
+                    # 已经知道进度条出现意外换行的原因了：有其他报错信息存在，插入在进度日志中间，这个时候只能看下输出文件是否正常了
+                    # if len(line.strip()) == 0:
+                    #     continue # 看看能不能修复进度条意外换行的问题。
                     # 尝试匹配进度信息
                     time_match = time_pattern.search(line)
                     if time_match:
@@ -505,14 +513,13 @@ def transcode_video(input_file, output_file, bitrate:int):
                         sys.stdout.flush()
                     else:
                         if last_is_time_line:
-                            sys.stderr.write('\n')
+                            sys.stdout.write('\n')
+                            sys.stdout.flush()
                             last_is_time_line = False
                         if g_args.log_debug:
                             # 普通日志信息直接输出
                             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S ")
-                            sys.stderr.write(current_time)
-                            sys.stderr.write(line)
-                            sys.stderr.write('\n')
+                            sys.stderr.write(f'{current_time} {line}\n')
                             sys.stderr.flush()
                     if g_args.dry_run > 0:
                         now = time.time()
@@ -521,9 +528,11 @@ def transcode_video(input_file, output_file, bitrate:int):
                             process.terminate()
                             break
                 if last_is_time_line:
-                    sys.stderr.write('\n')
+                    sys.stdout.write('\n')
+                    sys.stdout.flush()
             except KeyboardInterrupt:
-                sys.stdout.write('\n')
+                sys.stderr.write('\n')
+                sys.stderr.flush()
                 logger.info(f"Ctrl+C KeyboardInterrupt")
                 sys.exit(1)
             process.wait()
@@ -625,7 +634,6 @@ def main():
         ok = process_file(file, g_args.out_dir)
         cnt += int(ok)
     logger.info(f"全部处理完成. {cnt}/{total_cnt}")
-    logger
 
 if __name__ == "__main__":
     main()
