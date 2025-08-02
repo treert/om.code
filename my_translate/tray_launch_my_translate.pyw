@@ -6,6 +6,7 @@ import subprocess
 import sys
 import os
 import time
+import webbrowser
 import colorlog
 from pystray import Icon, Menu, MenuItem
 from PIL import Image
@@ -144,6 +145,9 @@ def open_log_directory(icon_instance):
     subprocess.Popen(f'explorer "{log_dir}"', shell=True)
     logger.info(f"已打开日志目录: {log_dir}")
 
+def open_url_in_webview(icon_instance):
+    webbrowser.open('http://localhost:5000/')
+
 def quit_application(icon_instance):
     stop_server(icon_instance)
     icon_instance.stop() # 这会停止 pystray icon 线程
@@ -159,6 +163,7 @@ def create_menu():
         MenuItem("启动服务器", start_server, enabled=not server_is_running),
         MenuItem("关闭服务器", stop_server, enabled=server_is_running),
         Menu.SEPARATOR,
+        MenuItem("打开测试URL", open_url_in_webview),
         MenuItem("打开日志窗口", open_launch_log_window),
         MenuItem("打开server日志窗口", open_server_log_window),
         MenuItem("打开日志目录", open_log_directory),
