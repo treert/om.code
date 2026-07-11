@@ -633,6 +633,7 @@ def main():
         logger.info(f"process {idx+1}/{total_cnt}: {file}")
         ok = process_file(file, g_args.out_dir)
         cnt += int(ok)
+        print("")
     logger.info(f"全部处理完成. {cnt}/{total_cnt}")
 
 if __name__ == "__main__":
