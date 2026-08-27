@@ -30,6 +30,7 @@ if not exist "%target_dir%" (
 :: 复制文件（强制覆盖）
 xcopy /y "%script_dir%SubtitleTranslate - MyTranslate.as" "%target_dir%\"
 xcopy /y "%script_dir%SubtitleTranslate - MyTranslate.ico" "%target_dir%\"
+xcopy /y "%script_dir%SubtitleTranslate - bing.as" "%target_dir%\"
 
 echo 文件已成功复制
 pause
