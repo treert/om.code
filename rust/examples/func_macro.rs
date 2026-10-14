@@ -5,6 +5,9 @@
 //! 这正是函数式宏区别于普通函数的关键：它在**语法层**工作，而不是类型层。
 //!
 //! 运行：`cargo run --example func_macro`
+//!
+//! 宏的「卫生性」（哪些名字会被重命名、`$crate` 解决什么）见 `examples/hygiene.rs`，
+//! 过程宏（proc macro）见 `docs/macro.md`。
 
 use std::fmt;
 
@@ -82,7 +85,7 @@ macro_rules! sql {
 }
 
 fn main() {
-    println!("{:<6} | {:<46} | {}", "kind", "text", "count");
+    println!("{:<6} | {:<46} | count", "kind", "text");
     println!("{}", "-".repeat(74));
 
     // ① 你举的那个例子：`SELECT * FROM users` 不是合法的 Rust 表达式，

@@ -50,11 +50,13 @@ rust-analyzer ── 编辑器里的语言服务器（LSP）：补全 / 跳转 /
 
 ## 语言机制文档
 
-不是工具，而是「某个语言机制到底怎么工作」的沉淀；每篇都配一个可运行的 `examples/*.rs`。
+不是工具，而是「某个语言机制到底怎么工作」的沉淀；每篇都配一个可运行的 `examples/*.rs`
+（`macro.md` 的过程宏部分例外 —— 它必须在独立 crate 里定义，见该文 §4.1，配方已实测）。
 
 | 文档 | 配套示例 | 主题 |
 | --- | --- | --- |
 | [lifetime.md](./lifetime.md) | [`examples/lifetime.rs`](../examples/lifetime.rs) | 省略规则、`'_`、`'static`、常见借用报错速查 |
+| [macro.md](./macro.md) | [`examples/func_macro.rs`](../examples/func_macro.rs)、[`examples/hygiene.rs`](../examples/hygiene.rs) | 声明宏的 token 树匹配 / 重复 / 递归上限、卫生性与 `$crate`、过程宏最小配方 |
 
 ## 相关
 
