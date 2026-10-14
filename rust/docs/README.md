@@ -58,6 +58,15 @@ rust-analyzer ── 编辑器里的语言服务器（LSP）：补全 / 跳转 /
 | [lifetime.md](./lifetime.md) | [`examples/lifetime.rs`](../examples/lifetime.rs) | 省略规则、`'_`、`'static`、常见借用报错速查 |
 | [macro.md](./macro.md) | [`examples/func_macro.rs`](../examples/func_macro.rs)、[`examples/hygiene.rs`](../examples/hygiene.rs) | 声明宏的 token 树匹配 / 重复 / 递归上限、卫生性与 `$crate`、过程宏最小配方 |
 
+## 编辑器机制文档
+
+不是工具本身，而是「编辑器侧到底怎么把代码染上色 / 怎么给到导航」的沉淀：
+区分 TextMate 正则层与 LSP 语义层，以及自定义宏的 DSL 想要高亮 / 跳转该怎么办。
+
+| 文档 | 主题 |
+| --- | --- |
+| [vscode-highlight.md](./vscode-highlight.md) | VS Code / Cursor 里 Rust 怎么染色：TextMate 正则 vs 语义 token，宏体「串味」的原因，注入语法与 LSP 导航的边界 |
+
 ## 相关
 
 - 目录用途与代码约定：见上一级 [`AGENTS.md`](../AGENTS.md)。

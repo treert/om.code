@@ -57,3 +57,7 @@
   宏展开）结论可能与真实编译不同。
 - RA 不负责格式化，`cargo fmt` 才是；也不负责 lint 规则本身，规则来自 rustc/clippy。
 - 大项目首次打开会慢（要跑一遍 `cargo check` 建索引），之后才是增量的爽感。
+
+> 另见：[`vscode-highlight.md`](./vscode-highlight.md) —— 编辑器里的着色其实是
+> 「编辑器内置 TextMate 语法（纯正则）+ RA 语义 token」两层叠加；RA 的 `contributes.grammars`
+> 里**没有** `source.rust`，Rust 的基础语法不在 RA 里。
