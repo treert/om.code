@@ -1,7 +1,8 @@
 # docs —— Rust 工具链各工具说明
 
-这里按「**一个工具一篇**」的方式记录 Rust 生态里各个工具：它是干什么的、常用命令、
-以及在本机**实测过**的版本与行为。目的是把查过一遍的东西沉淀下来，下次不用重新查。
+这里按「**一个主题一篇**」的方式记录 Rust 生态：工具类按「一个工具一篇」，讲它是干什么的、常用命令、
+以及在本机**实测过**的版本与行为；语言机制类单独成篇（见下方「语言机制文档」）。
+目的是把查过一遍的东西沉淀下来，下次不用重新查。
 
 ## 工具链地图
 
@@ -34,7 +35,7 @@ rust-analyzer ── 编辑器里的语言服务器（LSP）：补全 / 跳转 /
 已安装组件：`cargo`、`clippy`、`rust-analyzer`、`rust-docs`、`rust-src`、`rust-std`（含 `aarch64-apple-darwin`）、`rustc`、`rustfmt`
 未安装：`miri`（stable 不提供该组件，需要 nightly）
 
-## 文档索引
+## 工具文档索引
 
 | 文档 | 主题 |
 | --- | --- |
@@ -46,6 +47,14 @@ rust-analyzer ── 编辑器里的语言服务器（LSP）：补全 / 跳转 /
 | [rust-analyzer.md](./rust-analyzer.md) | IDE / LSP 支持 |
 
 计划补充：`rustdoc`（文档生成）、`miri`（UB 检测）、第三方 cargo 子命令（`cargo-expand` 等）。
+
+## 语言机制文档
+
+不是工具，而是「某个语言机制到底怎么工作」的沉淀；每篇都配一个可运行的 `examples/*.rs`。
+
+| 文档 | 配套示例 | 主题 |
+| --- | --- | --- |
+| [lifetime.md](./lifetime.md) | [`examples/lifetime.rs`](../examples/lifetime.rs) | 省略规则、`'_`、`'static`、常见借用报错速查 |
 
 ## 相关
 
