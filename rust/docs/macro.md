@@ -164,12 +164,14 @@ error: recursion limit reached while expanding `count!`
 
 ### 1.6 作用域：`macro_rules!` 默认是「文本作用域」
 
-和函数不同，`macro_rules!` 定义的宏**必须出现在使用点之前**（同一个文件里往下写才算数）。
-实测（探针 o1）：
+和函数 / 类型这类**条目**不同（条目解析与书写顺序无关），`macro_rules!` 默认走
+**文本作用域**：用**裸名字**调用时，定义点必须在文本上先出现 —— 和「同一个文件」没关系，
+和「同一个模块 + 有没有导出」关系很大。同模块内的反例（探针 sc1，`rustc --edition 2024`
+单独编译）：
 
 ```text
 error: cannot find macro `m` in this scope
- --> probe.rs:3:5
+ --> sc1.rs:3:5
   |
 3 |     m!();
   |     ^ consider moving the definition of `m` before this call
@@ -177,10 +179,49 @@ error: cannot find macro `m` in this scope
 note: a macro with the same name exists, but it appears later
 ```
 
-跨模块 / 跨 crate 使用时有两条路：
+但「必须写在前面」只在 **同一模块 + 裸名字 + 未导出** 这个组合下成立。把 sc1~sc17 逐条跑完，
+规则其实是两条**正交**的（下表 ✅ = 编译通过）：
 
-- `#[macro_export]`：把宏挂到 crate 根，Rust 2018 起可以用 `use crate::sql;` 这类**路径作用域**导入；
-- 放在 `mod macros` 里再 `use`：同样走路径作用域。
+| 调用方式 | 解析规则 | 证据 |
+| --- | --- | --- |
+| **裸名字** `m!()` | 看**文本顺序**：定义点之后可见，且该作用域**延伸到其后声明的子模块内部** | sc1 ❌ / sc2 ✅ / sc11 ✅ / sc13 ❌ |
+| **路径** `crate::m!()`、`self::m!()`、`use crate::m;` | 走**条目解析**，与顺序无关 —— 但前提是这条路径**真实存在** | sc4 ❌ / sc5 ❌ / sc6 ✅ / sc9 ✅ / sc10 ❌ |
+
+逐条结果：
+
+| # | 场景 | 探针 | 结果 |
+| --- | --- | --- | --- |
+| ① | 同模块、裸名字，使用点在定义**之前** | sc1 | ❌ `cannot find macro` |
+| ② | 同模块、裸名字，使用点在定义**之后** | sc2 | ✅ |
+| ③ | 宏**未导出**，用 `crate::m!()` / `self::m!()`（使用点在前 / 在后都试了） | sc3 / sc4 / sc5 | ❌ `error[E0433]: cannot find \`m\` in \`crate\``（`self` 同理） |
+| ④ | 宏加 `#[macro_export]` 后，**路径**调用写在定义之前 | sc6 | ✅ |
+| ⑤ | 宏加 `#[macro_export]` 后，同模块**裸名字**写在定义之前 | sc7 | ✅ |
+| ⑥ | `#[macro_export]` 的宏定义在**后面的子模块**里，crate 根部裸名字写在前面 | sc8 | ✅ |
+| ⑦ | 子模块里的宏 + `pub(crate) use` 重导出，`use crate::macros::inner;` 写在 `mod` 之前 | sc9 | ✅ |
+| ⑧ | 子模块里的宏**不**重导出，直接 `crate::macros::inner!()` | sc10 | ❌ `error[E0433]: cannot find \`inner\` in \`macros\`` |
+| ⑨ | 宏定义在 crate 根，**其后的**子模块里裸名字调用（带 / 不带 `#[macro_export]` 各试一次） | sc11 / sc12 | ✅ |
+| ⑩ | 子模块写在宏定义**之前**（宏带 `#[macro_export]`），模块里裸名字 | sc13 | ❌ `cannot find macro`；rustc 给 `help: consider importing this macro through its public re-export` |
+| ⑪ | 同 ⑩，但模块里补上 `use crate::m;` | sc14 | ✅ |
+| ⑫ | `#[macro_use] mod` 写在 `main` **之后** | sc15 | ❌ `help: have you added the \`#[macro_use]\` on the module/import?` |
+| ⑬ | `#[macro_use] mod` 写在 `main` **之前** | sc16 | ✅ |
+| ⑭ | `println!(...)` 与 `std::println!(...)` | sc17 | ✅ 两种写法都能编译 |
+
+三条容易踩的结论：
+
+1. **`#[macro_export]` 顺带解除了 crate 根这一层的顺序约束**（⑤⑥）：它把宏塞进 crate 根的宏
+   命名空间，于是根部调用不必等定义出现。但这个红利**不下发到嵌套模块** —— 模块写在定义之前时，
+   裸名字照样找不到（⑩），得显式补 `use crate::m;`（⑪）。
+2. **未导出的 `macro_rules!` 根本不进路径命名空间**（③⑧）：`crate::m!()`、`self::m!()` 一律
+   `E0433`，和顺序无关。所以想「按路径用」，只有两条路：`#[macro_export]`，或者
+   `pub` / `pub(crate) use` 重导出；**只写 `mod macros { macro_rules! ... }` 是不够的** ——
+   没有重导出就没有这条路径。跨 crate 同理：`#[macro_export]` 把宏挂到 crate 根后，
+   下游才能 `use your_crate::sql;` 这样按路径导入。
+3. **`#[macro_use] mod` 也是位置敏感的**（⑫⑬）：它的作用是把子模块里的宏「拉」进当前作用域，
+   写在 `main` 之后无效。
+
+顺带解答一个常见疑问：**`println!` 为什么到处都能用？** 它在 std 里就是 `#[macro_export]` 的，
+而每个 crate 都会被隐式注入 `#[macro_use] extern crate std;`，这些宏在 crate 根部「一开始就注入」
+（探针 sc17），因此不受文本顺序约束 —— 它不违反本节规则，走的正是上表第 ⑤ 条那条路。
 
 ### 1.7 怎么「看见」展开结果
 
@@ -508,7 +549,9 @@ let span = Span::call_site();   // 生成的名字「看起来像是调用处写
 | 报错首行 | 触发 | rustc 附带的注解 / help |
 | --- | --- | --- |
 | `error: no rules expected \`1\`` | 所有规则都没匹配上 | `no rules expected this token in macro call`；`note: while trying to match meta-variable \`$a:ident\`` |
-| `error: cannot find macro \`m\` in this scope` | 宏定义在使用点之后（文本作用域） | `consider moving the definition of \`m\` before this call`；`note: a macro with the same name exists, but it appears later` |
+| `error: cannot find macro \`m\` in this scope` | 裸名字调用写在定义之前（文本作用域） | `consider moving the definition of \`m\` before this call`；`note: a macro with the same name exists, but it appears later` |
+| 同上，但调用点在**嵌套模块**里 | 模块写在宏定义之前（`#[macro_export]` 也救不了嵌套模块） | `help: consider importing this macro through its public re-export` + `use crate::m;`；或旧式 `help: have you added the \`#[macro_use]\` on the module/import?`（§1.6 ⑩⑫） |
+| `error[E0433]: cannot find \`m\` in \`crate\`` | 把**未导出**的 `macro_rules!` 当路径用（`crate::m!()` / `self::m!()`），与顺序无关 | `could not find \`m\` in the crate root`；要按路径用必须 `#[macro_export]` 或 `pub(crate) use` 重导出（§1.6 ③⑧） |
 | `error: recursion limit reached while expanding \`count!\`` | 递归展开超过 `recursion_limit`（默认 128） | `consider increasing the recursion limit by adding a \`#![recursion_limit = "256"]\`` |
 | `error[E0426]: use of undeclared label \`'lbl\`` | 调用处想引用宏体内的标签 | 另有 `warning: unused label` 指向宏体内那个标签 |
 | `error[E0433]: cannot find module or crate \`inner\` in this scope` | 宏体里的裸路径在调用处解析不到 | `help: consider importing this module` + `use crate::inner;` |
@@ -531,7 +574,9 @@ let span = Span::call_site();   // 生成的名字「看起来像是调用处写
   （`concat_idents!` 至今未稳定）。要动态造名字只能上过程宏。
 - **兜底分支放错位置不会报错**，只会静默改变语义（§1.4，探针 o2 实测无警告）。
 - **`recursion_limit` 数的是整个展开栈**，外面套一层 `println!` 也会吃掉预算（§1.5）。
-- **宏一定先定义后使用**，和函数/类型相反（§1.6）。
+- **「宏一定先定义后使用」只对「裸名字 + 未导出」成立**：`#[macro_export]` 的宏在 crate 根层
+  不受顺序约束（`println!` 就是靠这条路），`use crate::xxx;` 路径导入同样与顺序无关；反过来，
+  未导出的 `macro_rules!` **无法**按路径访问，`crate::m!()` 直接 `E0433`（§1.6）。
 - **卫生性不是全局的**：局部变量和标签卫生，条目名和路径不卫生（§2）。
 - **过程宏必须独立成 crate**，且不能在定义它的 crate 内部使用（§4.1）。
 
@@ -580,3 +625,12 @@ println!("{}", count!(126 个 token))               -> recursion limit reached
 
 §4.2 的过程宏配方用 `cargo run --manifest-path .probe/use_pm/Cargo.toml` 实跑，
 输出即文中所列；`pm_lab` 的 `[[bin]]` 版本（同 package 内使用自身过程宏）也实跑通过。
+
+§1.6 的作用域规则用探针 `sc1`~`sc17`（临时目录 `rust/tmp/`，已在 `.gitignore` 里）逐条验证：
+
+```powershell
+cd rust/tmp
+rustc --edition 2024 sc1.rs -o sc1.exe    # 每条单独编译，编译不过就没有 exe；通过再运行看输出
+```
+
+表格里的 ✅/❌ 与报错原文即这批探针的输出，文件名（`sc1`、`sc10`…）与表中一一对应。
