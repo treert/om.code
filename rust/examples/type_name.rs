@@ -67,7 +67,10 @@ fn section_common_types() {
     println!("闭包               = {}", name_of(&cl));
 
     // 泛型函数实例化后，名字里会带上实参
-    println!("Option<RefCell<i32>> = {}", type_name::<Option<RefCell<i32>>>());
+    println!(
+        "Option<RefCell<i32>> = {}",
+        type_name::<Option<RefCell<i32>>>()
+    );
 }
 
 /// ③ 只有类型、没有值也能问 —— `type_name::<T>()` 是纯类型层面的。
@@ -78,7 +81,10 @@ fn section_type_level_only() {
     println!("str                = {}", type_name::<str>());
     println!("[u8]               = {}", type_name::<[u8]>());
     println!("dyn Fn(i32) -> i32 = {}", type_name::<dyn Fn(i32) -> i32>());
-    println!("&dyn std::fmt::Debug = {}", type_name::<&dyn std::fmt::Debug>());
+    println!(
+        "&dyn std::fmt::Debug = {}",
+        type_name::<&dyn std::fmt::Debug>()
+    );
 
     // 生命周期基本被擦掉：`&'static str` 与 `&'a str` 打印结果完全一样（都是 `&str`），
     // 只有出现在泛型实参位置时才会露出一个 `'_` 占位（见 ④ 的 Ref<'_, String>）
