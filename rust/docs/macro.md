@@ -58,6 +58,30 @@ INSERT | users VALUES (1, "Ada", 36) | 3 tokens
 
 ### 1.2 fragment specifier：对 token 做「分类校验」
 
+写法是 `$<名字>:<说明符>`，先把这两半分清楚（探针 n1 测名字、n2 测说明符，均 `rustc --edition 2024` 单独编译）：
+
+- **说明符**（冒号右边）是**关键字**：只能用下表那几种，自己起名写别的直接
+  `error: invalid fragment specifier \`x\``（探针 n2；rustc 的 help 会列出完整清单，并额外提到
+  `expr_2021` / `pat_param` 两个 edition 兼容写法）；
+- **名字**（冒号左边）**随便起**：它只是这条规则内部的局部变量名，把 `$rest` 改成 `$x` 毫无影响；
+- 唯一的硬约束是**两处同名**（连重复层级都要一致），只改一边分别报：
+
+```text
+# 展开处用了 matcher 里不存在的名字
+error: attempted to repeat an expression containing no syntax variables matched as repeating at this depth
+  --> probe.rs:2:37
+  |     ($($rest:tt)*) => { stringify!($($x)*) };
+  |                                       expected a repeatable metavariable: `$rest`
+
+# 名字对了，但展开处漏写了 $( )*
+error: variable `x` is still repeating at this depth
+  --> probe.rs:5:33
+  |     ($($x:tt)*) => { stringify!($x) };
+```
+
+`examples/func_macro.rs` 里一个宏内部就并存 `rest` / `table` / `vals` / `head` / `tail` / `tokens`
+六个名字，各自也都在展开处同名出现 —— 这就是「名字随意」的现成证据。
+
 | 分类 | 接受 | 典型用途 |
 | --- | --- | --- |
 | `ident` | 一个标识符 | 表名、变量名（`func_macro.rs` ② 的 `$table:ident`） |
@@ -500,6 +524,8 @@ let span = Span::call_site();   // 生成的名字「看起来像是调用处写
 ## 6. 常见误区
 
 - **`tt` 不等于「一个单词」**：括号组整体算一个（§1.1）。数 token 前先把括号折叠掉。
+- **`$name:tt` 里 `tt` 是关键字，`name` 才随便起**：把名字写到冒号右边（如 `($tt:x)`）直接
+  `error: invalid fragment specifier \`x\``；名字那头唯一的约束是「展开处同名」（§1.2，探针 n2 / n1）。
 - **`$e:expr` 之后就不能再拆了**：想细粒度处理，一开始就用 `tt` 收（§1.2，探针 t2 实测为 1 个 tt）。
 - **`macro_rules!` 不能拼接标识符**：不存在「用 token 拼出新名字」的能力
   （`concat_idents!` 至今未稳定）。要动态造名字只能上过程宏。
