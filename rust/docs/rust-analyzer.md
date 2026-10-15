@@ -117,6 +117,9 @@ RA 用这些 span 去换算行列时算出了文件长度之外的 offset → `i
 注意不只是「不崩了」：修之前 RA **根本没能解析出宏生成的 impl**（有的路径静默返回空、有的路径直接崩），
 修之后才给出正确结果。顺带生成代码里的报错/跳转位置也终于落回真实源码，而不是整条宏调用。
 
+**VS Code 侧同步验证过**：把下面的绕行设置注释掉、重启 server 后，`pub struct Config` 上方的
+implementations lens 正常显示、点开不再报错 —— 本节这个坑在本地已经消除。
+
 ### 复现与验证
 
 本地诊断脚本 `tmp/lsp_probe.py`（`tmp/` 已在 `.gitignore` 里，不入库；原理是当个极简 LSP 客户端）：
@@ -144,7 +147,8 @@ rust-analyzer analysis-stats proc_macro_lab/use_pm --run-all-ide-things   # pani
 Run / Debug / references 那几种都还在（键名取自 `rust-analyzer --print-config-schema`）。
 
 但它**只顶一半**：`hover`、`textDocument/implementation` 走的是另外的处理器，撞的是同一个 offset 问题 ——
-所以真正的解法是上面那个 `respan`。
+所以真正的解法是上面那个 `respan`。（本仓库的 `pm_lab` 已经改用 `respan`，
+本机 `.vscode/settings.json` 里这行已经注释掉、不再需要。）
 
 ## 常用操作
 
