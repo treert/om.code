@@ -1,8 +1,12 @@
 # 宏（macro）—— 编译期的 token 重写
 
 > 配套可运行实验：[`examples/func_macro.rs`](../examples/func_macro.rs)（token 树匹配 + 递归展开）、
+> [`examples/macro_ast.rs`](../examples/macro_ast.rs)（递归展开撑起一个完整 DSL：
+> 前缀式建树 + 累加器做左结合，含「兜底分支把无匹配变成无限递归」的实测报错）、
 > [`examples/hygiene.rs`](../examples/hygiene.rs)（卫生性：局部变量 / 标签 / 条目名 / `$crate`）。
-> 过程宏没有配套 example，原因见 [§4.1](#41-为什么-examples-里放不了过程宏)；最小配方已在本机实测跑通（[§4.2](#42-最小可跑配方实测)）。
+> 过程宏**没法**做成 example（原因见 [§4.1](#41-为什么-examples-里放不了过程宏)），它的实跑版在
+> [`proc_macro_lab/`](../proc_macro_lab/)（工作区成员 `pm_lab` + `use_pm`，跑法 `cargo run -p use_pm`，
+> 输出与踩坑见 [§4.4](#44-仓库里的实跑版proc_macro_lab)）；[§4.2](#42-最小可跑配方实测) 是更小的单文件配方。
 > 本文所有报错原文与输出均在 rustc / cargo **1.96.0** 上实测，命令见文末「本机实测」。
 
 ## 定位：宏在编译流程的哪一步
@@ -161,6 +165,15 @@ error: recursion limit reached while expanding `count!`
 
 `#![recursion_limit = "N"]` 是 crate 级属性，只能写在内层属性的位置（文件最上方）。
 它调的是**编译期**预算，和运行时栈没关系；调太大只会让编译器更慢、更吃内存。
+
+递归能撑起多大的活儿？**递归展开 + `tt` 拆分就是一台递归下降解析器**：
+[`examples/macro_ast.rs`](../examples/macro_ast.rs) 把 `(+ 1 (* 2 3))` 直接展开成一棵嵌套的语法树，
+两种典型手法各有各的位置 —— 「组内逐个 `tt` 递归成子节点」（前缀式，子节点个数 = 写了几个 token）
+和「把已建好的左子树塞进 `[ $acc:expr ]` 当累加器往右 munch」（左结合）。
+但 §1.4 那两条硬约束会同时发作：规则**顺序即语义**、命中即停**不回溯**。
+典型后果（实测）是 `add_chain!(1 + 2 * 3)` 这种带优先级的输入做不了 —— 而且它撞的不是
+`no rules expected`，是**无限递归**：无规则可匹配的中间状态被入口兜底分支接走又原样重来，
+一路顶到 `recursion_limit`（报错原文见文末）。要优先级 / 好报错 / IDE 补全，只能上过程宏（§4）。
 
 ### 1.6 作用域：`macro_rules!` 默认是「文本作用域」
 
@@ -421,7 +434,14 @@ error[E0433]: cannot find module or crate `inner` in this scope
 本仓库不把它做成 `examples/*.rs` 的原因：`examples/` 是本 package 的 target，要用上过程宏就得
 让**本 crate 自己**提供 `proc-macro` lib，那会把整个 package 变成过程宏宿主，和
 [`AGENTS.md`](../AGENTS.md) 里「每个 example 都是一份独立可跑、不引入额外依赖的单文件」
-的约定冲突。所以配方放在本文，需要动手时新建一个 lab 目录即可（下面就是实测过的那套）。
+的约定冲突。
+
+所以过程宏单独放在 [`proc_macro_lab/`](../proc_macro_lab/)，作为**工作区成员**
+（根 `Cargo.toml` 里就一句 `[workspace] members = ["proc_macro_lab/*"]`）：
+`pm_lab` 是 `proc-macro = true` 的定义方，`use_pm` 是消费方。
+这样既满足「过程宏必须独立成 crate、且不能在定义它的 crate 里使用」，
+又不用另起一个仓库，`target/` 和 `Cargo.lock` 还与主 package 共用。
+下面 §4.2 是最小的单文件配方，§4.4 是仓库里那份实跑版。
 
 ### 4.2 最小可跑配方（实测）
 
@@ -542,6 +562,71 @@ let span = Span::call_site();   // 生成的名字「看起来像是调用处写
 （`Span::def_site()` 至今仍在 nightly 后面）。这也是为什么过程宏生态里经常能看到
 `__serde_xxx` 这种带前缀的临时名。
 
+### 4.4 仓库里的实跑版：`proc_macro_lab/`
+
+```text
+rust/proc_macro_lab/
+├── pm_lab/{Cargo.toml, src/lib.rs}     # [lib] proc-macro = true：定义三个宏
+└── use_pm/{Cargo.toml, src/main.rs}    # 消费方：pm_lab = { path = "../pm_lab" }
+```
+
+跑法（在 `rust/` 下）：`cargo run -p use_pm`。三个宏**只用 std 的 `proc_macro`**，
+不依赖 `syn` / `quote`（所以不需要联网），正好把「syn 替你省掉了什么」摆出来：
+
+| 宏 | 形态 | 手写了什么 |
+| --- | --- | --- |
+| `calc!(1 + 2 * 3)` | 函数式 | **带优先级的中缀解析器**（Pratt：`min_bp` + 绑定力），展开成完全括号化的 `i64` 表达式 |
+| `#[timed("标签")]` | 属性 | 拆「签名 / 函数体」，把函数体整体搬进 `(|| { ... })()`，前后插计时 |
+| `#[derive(Describe)]` | 派生 | 扫出字段名生成 `impl`，字段级 `#[describe(skip)]` 会被摘掉 |
+
+编译期输出（混在 cargo 的构建日志里；改代码后重新编译才会再打一次）：
+
+```text
+[pm_lab] describe 作用在 struct User，字段 ["id", "name"]
+[pm_lab] timed 包住了 fn sum_to，标签 = sum_to
+[pm_lab] calc 解析出: (1 + (2 * 3))
+[pm_lab] calc 解析出: ((10 - 4) - 3)
+```
+
+运行期输出片段：
+
+```text
+calc!(1 + 2 * 3)     = 7                      ← 优先级生效，不是 (1+2)*3 = 9
+calc!(1 + 2 * 3 * 4) = 25
+calc!(10 - 4 - 3)    = 3                      ← 左结合
+[timed] 手写循环 用时 3.5777ms
+User::describe()    = ["id", "name"]          ← password_hash 被 #[describe(skip)] 摘掉了
+```
+
+三条只有真动手才会撞到的坑，都留在源码注释里：
+
+1. **`TokenStream::from_str` 要求括号成对**。属性宏里想拼「半截」模板会直接 panic：
+   `message: 固定的模板，一定合法: LexError("this file contains an unclosed delimiter")`。
+   闭包那层壳只能用 `Group::new(Delimiter::Brace, body)` 手工搭 —— 这恰好证明了
+   「过程宏的工作就是自己拼 token 树」，syn / quote 只是把这件事包装了一下。
+2. **`set_span` 就是「报错指哪儿」的全权开关**。把生成的 `compile_error!(...)` 三个 token
+   统统 `set_span(出错 token 的 span)`，报错就精确指到那个 token：
+
+   ```text
+   error: 这里需要一个数字，或者一个括号子表达式
+     --> proc_macro_lab/use_pm/src/main.rs:64:23
+      |
+   64 |     let _ = calc!(1 + * 2);
+      |                       ^
+   ```
+
+   对比 §1.5 里声明宏撞上 `recursion_limit` 那条报错（连出错 token 都指不出来），
+   差距全在 span 上。
+3. **生成代码里的裸名字在调用处解析**：`#[derive(Describe)]` 吐出来的
+   `impl Describe for User` 里的 `Describe`，是 `use_pm` 里自己定义、自己 import 的 trait
+   （serde 就是这个套路）；临时变量则因为「不卫生」只能挂 `__pm_` 前缀（§4.3）。
+
+另外两个顺手验证到的事实：`calc!` 里可以自由 lookahead（看一个 token 就能定优先级），
+这在「命中即停、按顺序试」的 `macro_rules!` 里不存在；
+`#[timed]` 包的是**闭包**，所以函数体里的 `return` / `?` 语义不变（`use_pm` 里
+`checked_add` 三个用例分别验证了正常返回、`return None`、`?` 早退），
+代价是 `async fn` 贴不了（`await` 会落在非 async 闭包里）。
+
 ---
 
 ## 5. 报错速查（原文实测）
@@ -553,6 +638,7 @@ let span = Span::call_site();   // 生成的名字「看起来像是调用处写
 | 同上，但调用点在**嵌套模块**里 | 模块写在宏定义之前（`#[macro_export]` 也救不了嵌套模块） | `help: consider importing this macro through its public re-export` + `use crate::m;`；或旧式 `help: have you added the \`#[macro_use]\` on the module/import?`（§1.6 ⑩⑫） |
 | `error[E0433]: cannot find \`m\` in \`crate\`` | 把**未导出**的 `macro_rules!` 当路径用（`crate::m!()` / `self::m!()`），与顺序无关 | `could not find \`m\` in the crate root`；要按路径用必须 `#[macro_export]` 或 `pub(crate) use` 重导出（§1.6 ③⑧） |
 | `error: recursion limit reached while expanding \`count!\`` | 递归展开超过 `recursion_limit`（默认 128） | `consider increasing the recursion limit by adding a \`#![recursion_limit = "256"]\`` |
+| 同上，但指向的是一条**兜底规则**（`macro_ast.rs` 的 `add_chain!(1 + 2 * 3)`） | 内部 `@` 规则全都匹配不上，被最后的入口兜底 `($($t:tt)*)` 接走并原样重来 → 卡在同一个位置空转 | 没有额外 help 指向真正的问题 token；所以「兜底分支放最后」必须配合「内部规则要能吃掉所有内部形态」一起设计（§1.5） |
 | `error[E0426]: use of undeclared label \`'lbl\`` | 调用处想引用宏体内的标签 | 另有 `warning: unused label` 指向宏体内那个标签 |
 | `error[E0433]: cannot find module or crate \`inner\` in this scope` | 宏体里的裸路径在调用处解析不到 | `help: consider importing this module` + `use crate::inner;` |
 | `error[E0428]: the name \`generated\` is defined multiple times` | 宏体里的条目在调用处重复定义 | `must be defined only once in the value namespace of this block` |
@@ -572,7 +658,11 @@ let span = Span::call_site();   // 生成的名字「看起来像是调用处写
 - **`$e:expr` 之后就不能再拆了**：想细粒度处理，一开始就用 `tt` 收（§1.2，探针 t2 实测为 1 个 tt）。
 - **`macro_rules!` 不能拼接标识符**：不存在「用 token 拼出新名字」的能力
   （`concat_idents!` 至今未稳定）。要动态造名字只能上过程宏。
-- **兜底分支放错位置不会报错**，只会静默改变语义（§1.4，探针 o2 实测无警告）。
+- **兜底分支放错位置不会报错**，只会静默改变语义（§1.4，探针 o2 实测无警告）；
+  更糟的形态是「无限递归」：内部规则无匹配时被兜底接走，一路顶到 `recursion_limit`（§1.5）。
+- **递归展开能做「解析」，但做不了「带优先级的解析」**：`tt` munch + 自调用就是一台递归下降解析器，
+  足以把 token 长成一棵树（`examples/macro_ast.rs`）；但命中即停、不回溯，所以中缀表达式要么
+  从一开始就写成前缀式 / 满括号形式，要么直接换过程宏 + `syn`（§1.5、§4）。
 - **`recursion_limit` 数的是整个展开栈**，外面套一层 `println!` 也会吃掉预算（§1.5）。
 - **「宏一定先定义后使用」只对「裸名字 + 未导出」成立**：`#[macro_export]` 的宏在 crate 根层
   不受顺序约束（`println!` 就是靠这条路），`use crate::xxx;` 路径导入同样与顺序无关；反过来，
@@ -585,7 +675,9 @@ let span = Span::call_site();   // 生成的名字「看起来像是调用处写
 ## 交叉引用
 
 - 声明宏的 token 树匹配、重复展开、递归计数：`examples/func_macro.rs`
+- 声明宏的递归展开撑起一棵完整 DSL 语法树（两种 munch 手法 + 失败长什么样）：`examples/macro_ast.rs`
 - 卫生性四条规则的可运行实证：`examples/hygiene.rs`
+- 过程宏的实跑版（定义 / 消费两个 crate、手写解析器、`set_span` 控制报错位置）：[`proc_macro_lab/`](../proc_macro_lab/)（§4.4）
 - 生命周期被擦除 / 类型名探针：`examples/type_name.rs`、[`lifetime.md`](./lifetime.md)
 - 编译器与 lint 级别（宏报错如何变成警告）：[`rustc.md`](./rustc.md)、[`clippy.md`](./clippy.md)
 - 看展开结果要装的第三方子命令（`cargo-expand`）：[`cargo.md`](./cargo.md)
@@ -602,6 +694,29 @@ SELECT | id, name FROM users WHERE age > 18  |  9 tokens
 INSERT | users VALUES (1, "Ada", 36)         |  3 tokens
 RAW    | this is @ not even valid Rust!!!   | 10 tokens
 编译期算出的 token_count = 7
+
+$ cargo run --example macro_ast
+== ① 嵌套：一棵真正的树 ==
+输入    : (+ 1 (* 2 3))
+显示    : (+ 1 (* 2 3))
+Debug   : Call { op: "+", args: [Num(1), Call { op: "*", args: [Num(2), Num(3)] }] }
+求值    : 7
+顶层子节点数 = 2 （括号里写了 1 和 (* 2 3)，两个 tt → 两个子节点）
+
+== ② token 分类：ident 收成 Sym，arity 由书写决定 ==
+显示    : (and (> x 0) (< x 10))
+
+== ③ 递归的基：`$( ... )*` 允许 0 次，`@group $op:tt` 也允许零个参数 ==
+dsl!(+) 显示 : (+)   →  求值 0
+dsl!(sum)    : sum
+
+== ④ 左结合：也是递归，只是把左子树当累加器 ==
+输入    : 1 + 2 + 3 + 4
+显示    : (+ (+ (+ 1 2) 3) 4)
+求值    : 10
+
+== ⑤ 树是运行时真数据，可以随手断言 ==
+assert_eq! 通过：这棵树就是手写出来那棵树
 
 $ cargo run --example hygiene
 == ① 局部变量卫生 ==
@@ -623,8 +738,23 @@ println!("{}", count!(126 个 token))               -> recursion limit reached
   同上 + #![recursion_limit = "129"]               -> OK，输出 126
 ```
 
+`examples/macro_ast.rs` 里那两条「声明宏做不了/不该放过」的实测：
+
+```text
+dsl!(1 2)              -> 编译通过，展开成 Call { op: "1", args: [Num(2)] }
+                          （错输入不会报错：$op:tt 只要求「一个 token」，不要求它是运算符）
+add_chain!(1 + 2 * 3)  -> error: recursion limit reached while expanding `add_chain!`
+                          （注意不是 `no rules expected`：`@munch [Node::Num(1)] * 3`
+                            没有规则匹配，被最后那条入口兜底 `($($t:tt)*)` 接走又套一层，
+                            每轮原地多套一层，直到撞上 recursion_limit）
+```
+
 §4.2 的过程宏配方用 `cargo run --manifest-path .probe/use_pm/Cargo.toml` 实跑，
 输出即文中所列；`pm_lab` 的 `[[bin]]` 版本（同 package 内使用自身过程宏）也实跑通过。
+
+§4.4 的 `proc_macro_lab/` 用 `cargo run -p use_pm` 实跑（`cargo clippy --workspace --all-targets` 零告警），
+文中所列编译期 / 运行期输出即实际输出；`calc!` 的两条报错、以及 `#[timed]` 那个
+`LexError("this file contains an unclosed delimiter")` panic 都是实际编译出来的原文。
 
 §1.6 的作用域规则用探针 `sc1`~`sc17`（临时目录 `rust/tmp/`，已在 `.gitignore` 里）逐条验证：
 

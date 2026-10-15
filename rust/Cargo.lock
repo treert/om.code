@@ -5,3 +5,14 @@ version = 4
 [[package]]
 name = "hello_rust"
 version = "0.1.0"
+
+[[package]]
+name = "pm_lab"
+version = "0.1.0"
+
+[[package]]
+name = "use_pm"
+version = "0.1.0"
+dependencies = [
+ "pm_lab",
+]

@@ -1,0 +1,9 @@
+[package]
+name = "pm_lab"
+version = "0.1.0"
+edition = "2024"
+
+# 关键的一行：过程宏不是「写一段宏体」，而是「写一个编译期程序」，
+# 编译器要求它单独打成一个 proc-macro 动态库，所以它必须是独立的 crate。
+[lib]
+proc-macro = true

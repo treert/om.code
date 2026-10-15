@@ -18,19 +18,24 @@
 
 ```
 rust/
-├── Cargo.toml            # package: hello_rust, edition 2024
+├── Cargo.toml            # package: hello_rust, edition 2024；同时是 workspace 根
 ├── AGENTS.md             # 本文件
 ├── src/main.rs           # 不是真入口，只做「示例索引」：列出各 example 及运行命令
 ├── examples/             # 每个主题一个独立可运行文件，命名规则见下方「约定」
+├── proc_macro_lab/       # 过程宏实验：pm_lab（定义，proc-macro crate）+ use_pm（消费方）
 └── docs/                 # 工具链各工具的说明文档，一个工具一篇（索引见 docs/README.md）
 ```
 
 `examples/` 和 `docs/` 下的具体文件会不断增加和调整，**本文件不维护文件清单**，需要时直接看目录。
 
+`proc_macro_lab/` 是唯一的多 crate 区域，因为过程宏**无法**作为 example 存在（见「约定」第 1 条）。
+
 ## 约定
 
 1. **新主题 = `examples/` 下新增一个文件**，文件名用主题的 snake_case（如 `lifetime.rs`、`async_basic.rs`），
    不要把实验代码堆进 `src/main.rs`。
+   唯一的例外是**过程宏**（proc macro）：编译器要求它必须是独立的 `proc-macro = true` crate，
+   所以它只能待在 `proc_macro_lab/` 里（定义与消费分成两个 crate），规矩见 `docs/macro.md` §4。
 2. 每个 example 顶部写 `//!` 文档注释，说明：**这个实验想验证什么** + **运行命令**（`cargo run --example <name>`）。
 3. 新增 example 后，顺手在 `src/main.rs` 的文档列表和 `main()` 打印里补一行，保持索引有效。
 4. 注释用中文，风格是「讲清为什么」而不是复述代码；涉及坑点/反直觉行为时，
@@ -47,6 +52,8 @@ rust/
 cargo run --example <name>        # 运行某个示例（<name> = examples/ 下的文件名，不带 .rs）
 cargo build --examples            # 编译全部示例（顺带校验）
 cargo build --all-targets         # 编译 main 与所有 example
+cargo run -p use_pm               # 过程宏实验（见 docs/macro.md §4）
+cargo build --workspace           # 连工作区成员一起编译（--all-targets 只管当前 package）
 cargo clippy --all-targets        # 静态检查（见 docs/clippy.md）
 cargo fmt --all                   # 格式化（见 docs/rustfmt.md）
 ```

@@ -1,0 +1,8 @@
+[package]
+name = "use_pm"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# 过程宏的消费方必须是**另一个 crate**：pm_lab 自己用不了自己定义的过程宏。
+pm_lab = { path = "../pm_lab" }

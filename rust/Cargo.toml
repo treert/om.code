@@ -4,3 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+
+# 过程宏实验放在 proc_macro_lab/ 下，作为工作区成员：
+# 过程宏必须是独立的 proc-macro crate，没法作为 example 塞进本 package，
+# 但可以挂进同一个工作区，共用 root 的 target/ 与 Cargo.lock。
+#   pm_lab —— `[lib] proc-macro = true`，定义三个过程宏
+#   use_pm —— 消费方（过程宏不能在定义它的 crate 里使用，只能是另一个 crate）
+# 跑法：`cargo run -p use_pm`
+[workspace]
+members = ["proc_macro_lab/*"]
