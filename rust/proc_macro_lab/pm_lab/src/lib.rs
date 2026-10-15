@@ -41,7 +41,14 @@ pub fn calc(input: TokenStream) -> TokenStream {
         // 解析完必须把输入吃干净，否则 `1 + 2 3` 这种会被静默吞掉
         Ok(expr) if p.pos == p.toks.len() => {
             eprintln!("[pm_lab] calc 解析出: {expr}");
-            expr.parse().expect("生成的 token 一定合法")
+            // 整个表达式都是拼字符串拼出来的，span 统一挂到输入的第一个 token 上
+            let span = p
+                .toks
+                .first()
+                .map(TokenTree::span)
+                .unwrap_or_else(Span::call_site);
+            let ts: TokenStream = expr.parse().expect("生成的 token 一定合法");
+            respan(ts, span)
         }
         Ok(_) => error_at(p.toks.last(), "表达式解析完了，后面还有多余的 token"),
         Err(e) => error_at(e.tok.as_ref(), &e.msg),
@@ -132,6 +139,33 @@ impl Parser {
     }
 }
 
+/// 把一段 token 里的**所有** token 都换成同一个 span（括号组内部递归处理）。
+///
+/// 为什么要这么干 —— 两个理由，第二个是本仓库实测出来的：
+///
+/// 1. `TokenStream::from_str(..)` 造出来的 token 拿的是 `Span::call_site()` 这种「哑」span，
+///    生成代码里报错/跳转都会指到整个宏调用上；换成输入里某个真实 token 的 span 后，
+///    位置就落在真实源码里（比如生成 `impl` 就挂到结构体名上）。
+/// 2. **rust-analyzer 0.3.3081 会给哑 span 算出越界 offset 然后 panic**
+///    （`line-index: invalid offset`，见 `docs/rust-analyzer.md`）。实测：同一个进程里，
+///    宏生成的 impl 走 `textDocument/implementation` 必崩，手写 impl 正常；
+///    换成真实 span 之后不再崩。
+fn respan(ts: TokenStream, span: Span) -> TokenStream {
+    ts.into_iter()
+        .map(|t| match t {
+            TokenTree::Group(g) => {
+                let mut new = Group::new(g.delimiter(), respan(g.stream(), span));
+                new.set_span(span);
+                TokenTree::Group(new)
+            }
+            mut leaf => {
+                leaf.set_span(span);
+                leaf
+            }
+        })
+        .collect()
+}
+
 /// 造一个 `compile_error!`，并**把 span 改到出错的那个 token 上**。
 ///
 /// 这几行就是「过程宏报错能精确指到某个 token」的全部秘密：
@@ -189,11 +223,13 @@ pub fn timed(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     // 函数名：`fn` 后面那个 ident（这里只够用，真要处理泛型/`where` 还得上 syn）
     let mut name = String::from("fn");
+    let mut name_span = Span::call_site();
     let mut expect_name = false;
     for t in &toks[..idx] {
         match t {
             TokenTree::Ident(i) if expect_name => {
                 name = i.to_string();
+                name_span = i.span(); // 给生成出来的模板当 span 用，见 `respan`
                 break;
             }
             TokenTree::Ident(i) => expect_name = i.to_string() == "fn",
@@ -220,15 +256,21 @@ pub fn timed(attr: TokenStream, item: TokenStream) -> TokenStream {
     // `"... let __pm_ret = (||".parse()` 这种「半截」模板（实测会 panic：
     // LexError("this file contains an unclosed delimiter")）。
     // 这些半截的壳子只能用 Group::new 手工搭 —— 正好也是「过程宏就是在拼 token 树」的实操。
-    let mut closure: TokenStream = "||".parse().expect("两个竖线，合法");
+    // 另一个坑：`from_str` 出来的 token 全是哑 span（`Span::call_site()`），
+    // 会把「宏展开出来的东西」和整条宏调用绑在一起。这里统一换成函数名那个 token 的 span，
+    // 生成代码里报错/跳转/IDE 算位置都会落到 `fn xxx` 上（`respan` 的注释里有实测原因）。
+    let mut closure: TokenStream = respan("||".parse().expect("两个竖线，合法"), name_span);
     closure.extend(std::iter::once(TokenTree::Group(Group::new(
         Delimiter::Brace,
         body,
     )))); // `|| { 原函数体 }`
 
-    let mut block: TokenStream = "let __pm_t0 = std::time::Instant::now(); let __pm_ret ="
-        .parse()
-        .expect("模板片段合法");
+    let mut block: TokenStream = respan(
+        "let __pm_t0 = std::time::Instant::now(); let __pm_ret ="
+            .parse()
+            .expect("模板片段合法"),
+        name_span,
+    );
     block.extend(std::iter::once(TokenTree::Group(Group::new(
         Delimiter::Parenthesis,
         closure,
@@ -237,11 +279,12 @@ pub fn timed(attr: TokenStream, item: TokenStream) -> TokenStream {
         Delimiter::Parenthesis,
         TokenStream::new(),
     )))); // `()` —— 调用那个闭包
-    block.extend(
+    block.extend(respan(
         format!("; eprintln!(\"[timed] {label} 用时 {{:?}}\", __pm_t0.elapsed()); __pm_ret")
             .parse::<TokenStream>()
             .expect("模板里只插了一个标签，一定合法"),
-    );
+        name_span,
+    ));
 
     let mut out: TokenStream = toks[..idx].iter().cloned().collect();
     out.extend(std::iter::once(TokenTree::Group(Group::new(
@@ -268,11 +311,13 @@ pub fn describe(input: TokenStream) -> TokenStream {
 
     // 结构体名：`struct` 后面的 ident
     let mut name = None;
+    let mut name_span = Span::call_site();
     let mut expect_name = false;
     for t in &toks {
         match t {
             TokenTree::Ident(i) if expect_name => {
                 name = Some(i.to_string());
+                name_span = i.span(); // 生成出来的 impl 的 span 就挂在这个名字上
                 break;
             }
             TokenTree::Ident(i) => expect_name = i.to_string() == "struct",
@@ -317,13 +362,16 @@ pub fn describe(input: TokenStream) -> TokenStream {
         .collect::<Vec<_>>()
         .join(", ");
     // 生成代码里的 `Describe` 走**调用处**的名字解析，所以 use_pm 里得先导入这个 trait
-    format!(
+    let impl_ts: TokenStream = format!(
         "impl Describe for {name} {{
             fn describe() -> &'static [&'static str] {{ &[{list}] }}
         }}"
     )
     .parse()
-    .expect("生成的 impl 一定合法")
+    .expect("生成的 impl 一定合法");
+    // 整段 impl 的 token 统一挂到结构体名上（不是哑的 call_site），
+    // 否则 rust-analyzer 给这个宏生成的 impl 算位置时会算出越界 offset 直接崩
+    respan(impl_ts, name_span)
 }
 
 /// 按**顶层**分隔符切分 token，括号组内部的逗号不算

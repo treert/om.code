@@ -617,6 +617,12 @@ User::describe()    = ["id", "name"]          ← password_hash 被 #[describe(s
 
    对比 §1.5 里声明宏撞上 `recursion_limit` 那条报错（连出错 token 都指不出来），
    差距全在 span 上。
+
+   另外，span 不只影响报错文案，还决定**编辑器能不能算位置**：`from_str` 出来的 token 全是哑的
+   `Span::call_site()` 时，rust-analyzer 0.3.3081 会在「给宏生成的 impl 算行列」这一步直接 panic
+   （`line-index: invalid offset`）。修法就是本 lab 里的 `respan()` ——
+   判据（手写 impl 正常 vs 宏生成 impl 崩）、复现步骤、改前改后对比见
+   [`rust-analyzer.md`](./rust-analyzer.md) 的「已知坑」一节。
 3. **生成代码里的裸名字在调用处解析**：`#[derive(Describe)]` 吐出来的
    `impl Describe for User` 里的 `Describe`，是 `use_pm` 里自己定义、自己 import 的 trait
    （serde 就是这个套路）；临时变量则因为「不卫生」只能挂 `__pm_` 前缀（§4.3）。
@@ -679,6 +685,7 @@ User::describe()    = ["id", "name"]          ← password_hash 被 #[describe(s
 - 卫生性四条规则的可运行实证：`examples/hygiene.rs`
 - 过程宏的实跑版（定义 / 消费两个 crate、手写解析器、`set_span` 控制报错位置）：[`proc_macro_lab/`](../proc_macro_lab/)（§4.4）
 - 生命周期被擦除 / 类型名探针：`examples/type_name.rs`、[`lifetime.md`](./lifetime.md)
+- 过程宏 span 对编辑器的影响（RA 因哑 span 崩 + `respan` 修法）：[`rust-analyzer.md`](./rust-analyzer.md)
 - 编译器与 lint 级别（宏报错如何变成警告）：[`rustc.md`](./rustc.md)、[`clippy.md`](./clippy.md)
 - 看展开结果要装的第三方子命令（`cargo-expand`）：[`cargo.md`](./cargo.md)
 
@@ -755,6 +762,12 @@ add_chain!(1 + 2 * 3)  -> error: recursion limit reached while expanding `add_ch
 §4.4 的 `proc_macro_lab/` 用 `cargo run -p use_pm` 实跑（`cargo clippy --workspace --all-targets` 零告警），
 文中所列编译期 / 运行期输出即实际输出；`calc!` 的两条报错、以及 `#[timed]` 那个
 `LexError("this file contains an unclosed delimiter")` panic 都是实际编译出来的原文。
+
+§4.4 里的 `respan()`（生成 token 一律挂真实 span）用本地探针 `tmp/lsp_probe.py` 做了改前 / 改后 A/B：
+`textDocument/implementation` 对 `trait Describe` / `struct Config` / `struct User`
+从「`None` + panic `invalid offset`」变成 **`2` / `1` / `1`**（结果还变正确了）。
+两个 crate 的编译产物亦用 `cargo run -p use_pm` 复核，输出与改前逐行一致。细节见
+[`rust-analyzer.md`](./rust-analyzer.md) 的「已知坑」一节。
 
 §1.6 的作用域规则用探针 `sc1`~`sc17`（临时目录 `rust/tmp/`，已在 `.gitignore` 里）逐条验证：
 
